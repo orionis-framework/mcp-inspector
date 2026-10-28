@@ -413,25 +413,102 @@ test("authentication is sent only to the endpoint and excluded from local downlo
   await expect(page.getByLabel("Credential", { exact: true })).toHaveValue("");
 });
 
-test("a running safe suite can be cancelled without invoking tools", async ({
-  page,
-}) => {
-  const requests = await mockMcp(page, { delayMs: 100 });
-  await connect(page);
-  await page
-    .getByRole("button", { name: "Run All Safe Tests", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Cancel tests", exact: true }).click();
-  await expect(
-    page.getByText("Safe checks cancelled; completed evidence retained."),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Run All Safe Tests", exact: true }),
-  ).toBeEnabled();
-  expect(requests.some((request) => request.method === "tools/call")).toBe(
-    false,
-  );
-});
+for (const phase of ["before discovery", "after discovery"] as const) {
+  test(`a running safe suite can be cancelled ${phase} without invoking tools`, async ({
+    page,
+  }) => {
+    const discoveryCompleted = phase === "after discovery";
+    const heldMethod = discoveryCompleted ? "tools/list" : "server/discover";
+    let armed = false;
+    let requestHeld = false;
+    let releaseRequest: (() => void) | undefined;
+    const heldResponse = new Promise<void>((resolve) => {
+      releaseRequest = resolve;
+    });
+    const requests = await mockMcp(page, {
+      beforeRespond: async (request) => {
+        if (armed && request.method === heldMethod) {
+          requestHeld = true;
+          await heldResponse;
+        }
+      },
+    });
+    try {
+      await connect(page);
+      const initialRequestCount = requests.length;
+      armed = true;
+      await page
+        .getByRole("button", { name: "Run All Safe Tests", exact: true })
+        .click();
+      // The response stays pending until cancellation is observed. No timing delay
+      // can move this assertion to the other side of the discovery boundary.
+      await expect.poll(() => requestHeld).toBe(true);
+      const progress = page.getByRole("region", { name: "Safe test progress" });
+      await expect(
+        progress
+          .getByText("Connectivity and discovery", { exact: true })
+          .locator(".."),
+      ).toContainText(discoveryCompleted ? "Passed" : "Running");
+      if (discoveryCompleted) {
+        await expect(
+          progress.getByText("Tools listing", { exact: true }).locator(".."),
+        ).toContainText("Running");
+      }
+      await page
+        .getByRole("button", { name: "Cancel tests", exact: true })
+        .click();
+      await expect(
+        page.getByText("Safe checks cancelled; completed evidence retained."),
+      ).toBeVisible();
+      await expect(progress).toHaveCount(0);
+
+      const runButton = page.getByRole("button", {
+        name: "Run All Safe Tests",
+        exact: true,
+      });
+      const status = page
+        .locator(".metric")
+        .filter({ hasText: "SERVER STATUS" })
+        .locator("strong");
+      const version = page
+        .locator(".metric")
+        .filter({ hasText: "MCP VERSION" })
+        .locator("strong");
+      if (discoveryCompleted) {
+        await expect(runButton).toBeEnabled();
+        await expect(status).toHaveText("Connected");
+        await expect(version).toHaveText("2026-07-28");
+      } else {
+        await expect(runButton).toBeDisabled();
+        await expect(
+          page.getByRole("button", { name: "Connect", exact: true }),
+        ).toBeEnabled();
+        await expect(status).toHaveText("Disconnected");
+        await expect(version).toHaveText("—");
+        const quality = page
+          .locator(".metric")
+          .filter({ hasText: "QUALITY SCORE" });
+        await expect(quality.locator("strong")).toHaveText("—");
+        await expect(quality).toContainText("Not Verified");
+        await expect(quality).toContainText("0% coverage");
+      }
+      await page.getByRole("tab", { name: "Logs", exact: true }).click();
+      await expect(page.locator(".console-code")).toContainText("cancelled");
+      expect(
+        requests.slice(initialRequestCount).map((request) => request.method),
+      ).toEqual(
+        discoveryCompleted
+          ? ["server/discover", "tools/list"]
+          : ["server/discover"],
+      );
+      expect(requests.some((request) => request.method === "tools/call")).toBe(
+        false,
+      );
+    } finally {
+      releaseRequest?.();
+    }
+  });
+}
 
 test("Monaco does not fetch external schemas embedded in tool arguments", async ({
   page,
