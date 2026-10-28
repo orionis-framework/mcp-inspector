@@ -155,8 +155,10 @@ test("crawler resources expose only public pages and the supplied social image",
   const robotsResponse = await request.get("/robots.txt");
   expect(robotsResponse.status()).toBe(200);
   const robots = await robotsResponse.text();
-  expect(robots).toMatch(/User-agent:\s*\*/i);
-  expect(robots).toMatch(/Allow:\s*\//i);
+  const groups = robots.replaceAll("\r\n", "\n").trim().split(/\n\s*\n/);
+  for (const agent of ["*", "OAI-SearchBot", "GPTBot", "ChatGPT-User"]) {
+    expect(groups).toContain(`User-agent: ${agent}\nAllow: /`);
+  }
   expect(robots).toContain("Sitemap: " + origin + "/sitemap.xml");
   expect(robots).not.toMatch(/Disallow:\s*\S+/i);
 

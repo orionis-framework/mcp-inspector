@@ -118,7 +118,7 @@ export function renderSeoHtml(html: string, locale: SeoLocale): string {
 }
 
 export const renderRobots = (): string =>
-  `User-agent: *\nAllow: /\n\nSitemap: ${SEO_ORIGIN}/sitemap.xml\n`;
+  `User-agent: *\nAllow: /\n\nUser-agent: OAI-SearchBot\nAllow: /\n\nUser-agent: GPTBot\nAllow: /\n\nUser-agent: ChatGPT-User\nAllow: /\n\nSitemap: ${SEO_ORIGIN}/sitemap.xml\n`;
 export const renderSitemap =
   (): string => `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

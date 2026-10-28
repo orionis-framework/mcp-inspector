@@ -101,7 +101,10 @@ describe("public static SEO documents", () => {
   });
 
   it("allows crawling the app and exposes only real localized public pages in the sitemap", () => {
-    expect(renderRobots()).toContain("User-agent: *\nAllow: /");
+    const groups = renderRobots().trim().split(/\n\s*\n/);
+    for (const agent of ["*", "OAI-SearchBot", "GPTBot", "ChatGPT-User"]) {
+      expect(groups).toContain(`User-agent: ${agent}\nAllow: /`);
+    }
     expect(renderRobots()).toContain(`Sitemap: ${SEO_ORIGIN}/sitemap.xml`);
     expect(renderRobots()).not.toContain("Disallow");
     const sitemap = renderSitemap();
