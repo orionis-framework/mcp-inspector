@@ -1,0 +1,74 @@
+name: Validate and deploy GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: Build and verify static artifact
+        run: pnpm build
+      - name: Install integration test browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Browser integration tests against controlled mocks
+        run: pnpm test:e2e
+      - name: Upload static GitHub Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Read GitHub Pages configuration
+        id: pages
+        uses: actions/configure-pages@v6
+      - name: Require the configured custom domain
+        env:
+          PAGES_BASE_URL: ${{ steps.pages.outputs.base_url }}
+        run: |
+          if [ "${PAGES_BASE_URL%/}" != "https://inspector.orionis-framework.com" ]; then
+            echo "::error::Configure inspector.orionis-framework.com and HTTPS in Settings > Pages before deploying. public/CNAME alone does not configure an Actions deployment."
+            exit 1
+          fi
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

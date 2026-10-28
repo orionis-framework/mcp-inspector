@@ -1,0 +1,17 @@
+@import "../styles/fonts.css";
+html,
+body,
+#editor {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+html {
+  background: #fff;
+  color-scheme: light;
+}
+html.dark {
+  background: #101e30;
+  color-scheme: dark;
+}
