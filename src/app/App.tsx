@@ -40,11 +40,19 @@ import {
 } from "@/core/reporting";
 import { useI18n } from "@/i18n/react";
 import { translateGenerated, type Locale } from "@/i18n";
+import { updatePageMetadata, localeFromPath } from "@/seo/browser";
+import { APP_VERSION } from "@/version";
 export default function App() {
   const { t, locale, setLocale } = useI18n();
   useEffect(() => {
-    document.documentElement.lang = locale;
+    updatePageMetadata(locale);
   }, [locale]);
+  useEffect(() => {
+    const syncLocation = () =>
+      setLocale(localeFromPath(window.location.pathname));
+    window.addEventListener("popstate", syncLocation);
+    return () => window.removeEventListener("popstate", syncLocation);
+  }, [setLocale]);
   const s = useInspector();
   const [auth, setAuth] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -474,7 +482,7 @@ export default function App() {
         </span>
         <span>
           {t(s.tests.length > 0 ? score.readiness : "No evidence collected")}
-          <i /> v1.0.0
+          <i /> v{APP_VERSION}
         </span>
       </footer>
       <Dialog

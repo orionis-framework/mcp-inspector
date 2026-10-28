@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../../version";
 import { redact, redactUrl } from "../../utils/redact";
 import {
   MCP_VERSION,
@@ -248,7 +249,7 @@ export class McpClient {
           "io.modelcontextprotocol/clientCapabilities": {},
           "io.modelcontextprotocol/clientInfo": {
             name: "orionis-mcp-inspector",
-            version: "1.0.0",
+            version: APP_VERSION,
           },
           ...(method === "tools/call" ? { progressToken: id } : {}),
         },

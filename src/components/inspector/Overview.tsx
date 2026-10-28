@@ -1,3 +1,5 @@
+import { lazy, Suspense } from "react";
+import { ProductInfo } from "./ProductInfo";
 import { useI18n } from "@/i18n/react";
 import {
   Activity,
@@ -8,7 +10,7 @@ import {
   Server,
   Workflow,
 } from "lucide-react";
-import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip } from "recharts";
+const LatencyChart = lazy(() => import("./LatencyChart"));
 import { useInspector } from "@/stores/inspector";
 import { calculateScore, metrics } from "@/core/validation";
 import { Button } from "@/components/ui/button";
@@ -34,7 +36,7 @@ export function Overview() {
           <h1>
             {connected
               ? String(info?.title ?? info?.name ?? t("Server overview"))
-              : t("Clarity for every connection.")}
+              : "Orionis MCP Inspector"}
           </h1>
           <p>
             {connected
@@ -165,44 +167,9 @@ export function Overview() {
           </div>
         </div>
         {chart.length ? (
-          <div style={{ height: 125, minWidth: 0 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chart}>
-                <defs>
-                  <linearGradient id="latency-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop
-                      offset="0%"
-                      stopColor="var(--accent)"
-                      stopOpacity={0.35}
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor="var(--accent)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="n" hide />
-                <Tooltip
-                  formatter={(value) => [value + " ms", t("Round trip")]}
-                  contentStyle={{
-                    background: "var(--surface)",
-                    borderColor: "var(--line)",
-                    color: "var(--text)",
-                    borderRadius: 6,
-                  }}
-                  itemStyle={{ color: "var(--accent)" }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="ms"
-                  stroke="var(--accent)"
-                  fill="url(#latency-fill)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          <Suspense fallback={<div style={{ height: 125 }} aria-busy="true" />}>
+            <LatencyChart chart={chart} />
+          </Suspense>
         ) : (
           <div className="empty-chart">
             <span />
@@ -239,6 +206,7 @@ export function Overview() {
           </Button>
         </div>
       )}
+      {!connected && <ProductInfo />}
     </div>
   );
 }

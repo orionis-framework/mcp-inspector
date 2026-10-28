@@ -8,10 +8,6 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https: http:; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
-    <meta
-      name="description"
-      content="Inspect, test and validate stateless MCP servers directly from your browser. Private by design. No proxy. No backend."
-    />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link
       rel="preload"
@@ -27,10 +23,11 @@
       type="font/woff2"
       crossorigin
     />
-    <title>Orionis MCP Inspector</title>
+    <!-- seo:head:start -->
+    <!-- seo:head:end -->
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><!-- seo:content:start --><!-- seo:content:end --></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

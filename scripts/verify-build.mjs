@@ -22,10 +22,16 @@ assert.ok(
   existsSync(join(dist, "editor.html")),
   "Local editor entry must exist",
 );
-for (const entry of ["index.html", "editor.html"]) {
+for (const entry of ["index.html", "es/index.html", "editor.html"]) {
+  assert.ok(existsSync(join(dist, entry)), "Missing static HTML: " + entry);
   const html = read(join(dist, entry));
-  for (const [, href] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
-    if (href.startsWith("#") || href.startsWith("data:")) continue;
+  // Navigation/canonical links may be absolute. Every loaded asset must remain local.
+  for (const [tag] of html.matchAll(
+    /<(?:script|link|img|iframe|source)\b[^>]*>/gi,
+  )) {
+    if (/\brel="(?:canonical|alternate)"/i.test(tag)) continue;
+    const href = /(?:src|href)="([^"]+)"/.exec(tag)?.[1];
+    if (!href || href.startsWith("#") || href.startsWith("data:")) continue;
     assert.ok(
       !/^https?:/.test(href),
       entry + " must use local runtime assets: " + href,
@@ -40,6 +46,12 @@ for (const entry of ["index.html", "editor.html"]) {
     );
   }
 }
+for (const entry of [
+  "robots.txt",
+  "sitemap.xml",
+  "images/orionis-mcp-inspector.png",
+])
+  assert.ok(existsSync(join(dist, entry)), "Missing discovery asset: " + entry);
 const files = walk(dist);
 const allowedExtensions = new Set([
   ".html",
@@ -55,6 +67,7 @@ const allowedExtensions = new Set([
   ".woff2",
   ".ttf",
   ".json",
+  ".xml",
   ".txt",
   ".map",
 ]);

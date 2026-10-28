@@ -1948,3 +1948,65 @@ kbd {
     display: none;
   }
 }
+
+/* Public product content is shared with the static, JavaScript-free document. */
+.product-info {
+  margin-top: 24px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.product-info h2 {
+  font-size: 21px;
+  line-height: 1.35;
+}
+.product-info p {
+  color: var(--muted);
+}
+.product-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 24px;
+}
+.product-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin: 18px 0;
+}
+.product-links a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.product-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin-top: 24px;
+}
+.seo-static {
+  max-width: 1080px;
+  padding: 32px 24px;
+  margin: auto;
+}
+.seo-static > header {
+  margin-bottom: 28px;
+}
+.seo-static > header img {
+  width: 56px;
+  height: 56px;
+}
+.seo-static h1 {
+  font-size: clamp(26px, 4vw, 40px);
+}
+@media (max-width: 600px) {
+  .product-info {
+    padding: 18px;
+  }
+  .product-feature-grid {
+    grid-template-columns: 1fr;
+  }
+}

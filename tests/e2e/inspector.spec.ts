@@ -11,7 +11,7 @@ test("static workspace loads without remote services or internal API routes", as
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Clarity for every connection." }),
+    page.getByRole("heading", { name: "Orionis MCP Inspector", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("Not Verified", { exact: true }).first(),

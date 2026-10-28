@@ -15,7 +15,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open the URL printed by Vite. The inspector is a single-route workspace, so it requires no history fallback or server rewrites. Enter a full HTTP(S) MCP endpoint, configure authentication if needed, and connect. From an HTTPS deployment, use an HTTPS endpoint: browsers may block insecure mixed content. Loopback/local network access is also subject to browser permissions and network policy.
+Open the URL printed by Vite. The inspector uses static English (`/`) and Spanish (`/es/`) entry pages. Both work on a direct visit or reload without server rewrites. Enter a full HTTP(S) MCP endpoint, configure authentication if needed, and connect. From an HTTPS deployment, use an HTTPS endpoint: browsers may block insecure mixed content. Loopback/local network access is also subject to browser permissions and network policy.
 
 ```sh
 pnpm typecheck
@@ -35,9 +35,10 @@ The workspace reuses the official Orionis website and documentation palette: blu
 
 ## Languages
 
-The header language selector switches between **English** and **Español**. Every new
-page load starts in English regardless of the browser language. The choice lives in
-tab memory; changing it preserves the connection, credentials, arguments and results.
+The header language selector switches between **English** and **Español**. The root URL starts in English regardless of the browser language; `/es/` opens Spanish
+directly. Changing language updates the public URL and metadata without reloading or
+losing the connection, credentials, arguments or results. The selected language survives
+a reload through its URL; no private session data is stored in that URL.
 Interface labels, inspector-generated diagnostics, confirmations and readable HTML/PDF
 reports follow the selected language. JSON exports record the selected language while
 keeping canonical statuses and evidence for programmatic use. Names, descriptions,
@@ -47,6 +48,28 @@ Translations are bundled locally in `src/i18n`. Monaco loads its official local
 Spanish catalog in a same-origin static `editor.html` document so its menus can switch
 languages without reloading the workspace. No translation service or CDN is used. Some internal JSON language-service diagnostics
 remain in English because the installed worker does not include a Spanish catalog.
+
+## Search and sharing
+
+Vite generates real static HTML for both languages with visible product content,
+self-referencing canonical URLs, reciprocal hreflang links and an English x-default.
+The same product copy appears in the interactive workspace. Metadata and structured
+data describe the public product only; server names, endpoints, credentials and payloads
+never enter the page head. No server-side rendering or production Node process is used.
+
+The original supplied promotional PNG is hosted locally and used for Open Graph and
+Twitter large-image cards. Its recorded dimensions are 1672 × 941. JSON-LD describes
+the organization, website and web application without invented reviews or ratings.
+The internal editor document is marked noindex while remaining crawlable so robots
+can read that directive. The generated sitemap includes only the two public pages.
+Charts and the editor load on demand; the promotional image is not preloaded.
+
+- Sitemap: https://inspector.orionis-framework.com/sitemap.xml
+- Robots: https://inspector.orionis-framework.com/robots.txt
+
+Owners can submit the sitemap in their verified Google Search Console/Bing Webmaster
+Tools properties. Deployment does not claim search-engine submission, indexing or a
+guaranteed ranking. Social platforms may cache previews after publication.
 
 ## Workspace
 
@@ -145,6 +168,8 @@ src/components       React workspace panels
 src/stores           Session state
 src/i18n             Local English/Spanish presentation
 src/editor           Localized, same-origin Monaco document
+src/seo              Shared public product copy and metadata
+scripts/seo.ts       Build-time static language pages and discovery files
 src/utils            Shared browser-safe helpers and redaction
 tests                Controlled unit and integration tests
 scripts              Build-time static artifact verification

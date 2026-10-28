@@ -1,19 +1,17 @@
 import { create } from "zustand";
-import {
-  DEFAULT_LOCALE,
-  translate,
-  type Locale,
-  type TranslationParams,
-} from "./index";
+import { localeFromPath } from "@/seo/browser";
+import { translate, type Locale, type TranslationParams } from "./index";
 
 export const useLanguage = create<{
   locale: Locale;
   setLocale: (locale: Locale) => void;
 }>((set) => ({
-  locale: DEFAULT_LOCALE,
+  locale: localeFromPath(
+    typeof window === "undefined" ? "/" : window.location.pathname,
+  ),
   setLocale: (locale) => set({ locale }),
 }));
-/** Language is a tab preference; no credentials or payloads are persisted. */
+/** Language comes from the public page path; credentials and payloads remain in memory. */
 export function useI18n() {
   const locale = useLanguage((state) => state.locale);
   const setLocale = useLanguage((state) => state.setLocale);
