@@ -119,7 +119,7 @@ export const useInspector = create<State>((set, get) => ({
       controller,
       busy: true,
       connected: false,
-      message: "Discovering server…",
+      message: "Checking HTTP response and MCP discovery…",
       snapshot: empty(),
       tests: [],
       selection: { kind: "overview" },

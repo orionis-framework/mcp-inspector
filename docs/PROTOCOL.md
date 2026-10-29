@@ -38,7 +38,13 @@ The safe suite calls discovery and declared catalog methods. It does not call to
 
 ## HTTP and browser evidence
 
-Configured request headers are distinct from response headers exposed through Fetch. Browser-added headers, OPTIONS exchanges, TLS and TCP details are not available to this client. The browser performs any necessary preflight. A rejected Fetch without an exposed response is classified as ambiguous connectivity/CORS, never proof of CORS or an MCP server defect.
+Configured request headers are distinct from response headers exposed through Fetch. Browser-added headers, OPTIONS exchanges, TLS and TCP details are not available to this client. The browser performs any necessary preflight. A rejected Fetch without an exposed response is classified as an unverified connection failure, never proof of CORS, a nonexistent host, a network restriction or an MCP server defect.
+
+Discovery is the first read-only protocol request. Exposed HTTP statuses are evaluated separately from media type and MCP response validity: a 404 identifies a missing route, while a successful HTML response does not establish an MCP endpoint. Missing unexposed headers are not grounds for rejecting an otherwise valid server. No GET or HEAD probe is substituted for discovery, since a valid MCP POST endpoint may not support either method.
+
+The connection help accepts terminal output as separate, user-supplied diagnostic evidence. A certificate trust error such as `SEC_E_UNTRUSTED_ROOT` does not establish CORS or firewall blocking. A block page explicitly naming a network filter can identify a network restriction. A successful OPTIONS response must still include the required `Access-Control-Allow-*` headers; `Allow` is not CORS permission. Terminal evidence is processed locally and never upgrades server verification or quality scores.
+
+The copyable Orionis `.env` example configures explicit `CORS_ALLOW_ORIGINS`, `CORS_ALLOW_METHODS` and request `CORS_ALLOW_HEADERS`. Standard `config/mcp.py` Origin validation and `config/http.py` CORS both read the origin variable, but enforce distinct parts of the browser-access policy. Existing environment values override Python fallbacks, and the application must restart to load changed configuration.
 
 `fetch` uses CORS mode, omits ambient cookies, rejects redirects and sends no referrer. Redirects therefore cannot forward credentials to another origin. Credentials in URL userinfo and manually overridden protocol/browser headers are rejected. Authentication headers and their known values are removed from recorded payloads and returned display data. No proxy, analytics, remote JSON Schema resolution or external runtime loader is used.
 

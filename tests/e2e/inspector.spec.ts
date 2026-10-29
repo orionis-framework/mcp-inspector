@@ -241,7 +241,7 @@ test("ambiguous network errors do not claim confirmed CORS failure and preserve 
     .fill(endpoint);
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await expect(
-    page.getByText(/Possible CORS block or connectivity problem/).first(),
+    page.getByText("No accessible HTTP response", { exact: true }),
   ).toBeVisible();
   await expect(page.locator(".cors-help")).toContainText(
     "http://127.0.0.1:4173",

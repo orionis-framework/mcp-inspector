@@ -6,6 +6,7 @@ import {
   hermesConfig,
   requestAsCurl,
   requestAsPreflightCurl,
+  requestAsPreflightPowerShell,
   requestAsFetch,
   requestAsJson,
 } from "../src/core/reporting";
@@ -137,6 +138,18 @@ describe("Hermes native configuration", () => {
 });
 
 describe("diagnostic preflight exports", () => {
+  it("exports literal PowerShell arguments without credentials or certificate bypass", () => {
+    const output = requestAsPreflightPowerShell({
+      ...record,
+      endpoint: "https://example.com/mcp/o'neil$(secret)?token=private-value",
+    }, "https://inspector.orionis-framework.com");
+    expect(output).toContain("curl.exe --include --max-time 20 --request OPTIONS '");
+    expect(output).toContain("o''neil$(secret)");
+    expect(output).toContain("Access-Control-Request-Method: POST");
+    for (const value of ["private-value", "private-token", "header-secret", "--insecure", "--location", "--data"])
+      expect(output).not.toContain(value);
+    expect(() => requestAsPreflightPowerShell(record, "file:///tmp/test")).toThrow("HTTP(S)");
+  });
   it("uses the current origin and excludes safelisted Accept from required header names", () => {
     const output = requestAsPreflightCurl(
       {

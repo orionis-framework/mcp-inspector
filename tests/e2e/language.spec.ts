@@ -194,7 +194,7 @@ test("CORS diagnostics and missing score switch languages without retrying the r
     .fill(endpoint);
   await page.getByRole("button", { name: "Conectar", exact: true }).click();
   await expect(
-    page.getByText("Posible bloqueo CORS o problema de conectividad", {
+    page.getByText("Diagnóstico de conexión", {
       exact: true,
     }),
   ).toBeVisible();
@@ -211,7 +211,7 @@ test("CORS diagnostics and missing score switch languages without retrying the r
 
   await changeLanguage(page, "en");
   await expect(
-    page.getByText("Possible CORS block or connectivity problem", {
+    page.getByText("Connection diagnostics", {
       exact: true,
     }),
   ).toBeVisible();

@@ -1417,7 +1417,8 @@ kbd {
 .error {
   color: var(--danger);
 }
-.cors-help {
+.cors-help,
+.connection-help {
   margin: 18px 24px;
   padding: 14px;
   background: var(--surface);
@@ -1425,22 +1426,91 @@ kbd {
   border-radius: 6px;
   color: var(--warning);
 }
-.cors-help summary {
+.cors-help summary,
+.connection-help summary {
   font-size: 14px;
   font-weight: 600;
 }
-.cors-help p {
+.cors-help p,
+.connection-help p {
   font-size: 13px;
   color: var(--muted);
   margin-top: 10px;
 }
-.cors-help pre {
+.cors-help pre,
+.connection-help pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 12px;
   color: var(--text);
   background: var(--bg);
   padding: 12px;
+}
+.orionis-setup {
+  border-color: var(--line);
+  color: var(--text);
+  margin-bottom: 0;
+}
+.orionis-setup [role="status"] {
+  display: inline-block;
+  margin: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.cors-help details {
+  margin-top: 14px;
+}
+.cors-help summary,
+.connection-help summary {
+  cursor: pointer;
+}
+.terminal-diagnostics {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.terminal-diagnostics > label {
+  display: block;
+  margin: 12px 0 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+.terminal-diagnostics textarea {
+  display: block;
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.terminal-diagnostics .terminal-complete {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+}
+.terminal-complete input {
+  width: auto;
+  margin-top: 3px;
+}
+.terminal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.terminal-result {
+  margin-top: 14px;
+  padding: 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-soft);
+  color: var(--text);
+}
+.terminal-result h4 {
+  margin-top: 0;
+}
+.terminal-result small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.5;
 }
 .dialog-overlay {
   position: fixed;

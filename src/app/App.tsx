@@ -28,6 +28,7 @@ import { Diagnostics } from "@/components/diagnostics/Diagnostics";
 import { TestProgress } from "@/components/diagnostics/TestProgress";
 import { RequestConsole } from "@/components/console/RequestConsole";
 import { CorsHelp } from "@/components/connection/CorsHelp";
+import { OrionisSetup } from "@/components/connection/OrionisSetup";
 import { calculateScore, metrics } from "@/core/validation";
 import { runAuthenticationProbe } from "@/core/testing/runner";
 import {
@@ -191,6 +192,7 @@ export default function App() {
   const editor = (
     <>
       <TestProgress />
+      <OrionisSetup />
       <CorsHelp />
       <Inspector />
     </>

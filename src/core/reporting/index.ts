@@ -221,7 +221,7 @@ export function requestAsCurl(
 }
 
 /** Header names for this transport's CORS preflight, never authentication values. */
-function preflightHeaderNames(record: RequestRecord): string[] {
+export function preflightHeaderNames(record: RequestRecord): string[] {
   const unsafeValue = (value: string) =>
     Array.from(value).some((character) => {
       const code = character.charCodeAt(0);
@@ -281,6 +281,31 @@ export function requestAsPreflightCurl(
         "  --header " +
         shellQuote(value) +
         (index < headers.length - 1 ? " \\" : ""),
+    ),
+  ].join("\n");
+}
+
+/** Windows PowerShell equivalent, with literal quoting and no credentials. */
+export function requestAsPreflightPowerShell(
+  record: RequestRecord,
+  origin: string,
+  secrets: string[] = [],
+): string {
+  const inspectorOrigin = new URL(origin);
+  if (!["http:", "https:"].includes(inspectorOrigin.protocol))
+    throw new Error("A preflight probe requires an HTTP(S) inspector origin.");
+  const request = safeRequest(record, secrets);
+  const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
+  const names = preflightHeaderNames(record);
+  const headers = [
+    "Origin: " + inspectorOrigin.origin,
+    "Access-Control-Request-Method: POST",
+    ...(names.length ? ["Access-Control-Request-Headers: " + names.join(", ")] : []),
+  ];
+  return [
+    "curl.exe --include --max-time 20 --request OPTIONS " + quote(request.url) + " `",
+    ...headers.map((value, index) =>
+      "  --header " + quote(value) + (index < headers.length - 1 ? " `" : ""),
     ),
   ].join("\n");
 }

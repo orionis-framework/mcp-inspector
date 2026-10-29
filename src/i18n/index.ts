@@ -1,4 +1,7 @@
 import { appEs } from "./app";
+import { connectionEs } from "./connection";
+import { connectionSetupEs } from "./connection-setup";
+import { terminalEs } from "./terminal";
 import { inspectorEs } from "./inspector";
 import { workspaceEs } from "./workspace";
 import { diagnosticsEs, diagnosticTemplatesEs } from "./diagnostics";
@@ -11,6 +14,9 @@ export const spanishMessages: Record<string, string> = {
   ...workspaceEs,
   ...inspectorEs,
   ...diagnosticsEs,
+  ...connectionEs,
+  ...connectionSetupEs,
+  ...terminalEs,
 };
 function interpolate(template: string, params: TranslationParams): string {
   return template.replace(

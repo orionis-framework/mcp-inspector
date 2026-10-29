@@ -322,10 +322,147 @@ describe("stateless browser MCP transport", () => {
     await expect(blocked.discover()).rejects.toMatchObject({
       kind: "network",
       message: expect.stringContaining(
-        "Possible CORS block or connectivity issue",
+        "No accessible HTTP response",
       ),
     });
     expect(blocked.records[0]?.httpStatus).toBeUndefined();
+  });
+  it.each([
+    ["text/html", "<html><title>Not Found</title></html>"],
+    ["application/json", '{"error":"not found"}'],
+    ["text/plain", "Not Found"],
+    ["application/json", ""],
+  ])("reports a visible 404 before interpreting its %s body", async (contentType, body) => {
+    const fetchImpl = vi.fn(async () => new Response(body, {
+      status: 404,
+      headers: { "Content-Type": contentType },
+    }));
+    const client = new McpClient({ endpoint, fetchImpl });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "http",
+      message: expect.stringContaining("HTTP 404: endpoint path not found"),
+    });
+    expect(client.records[0]).toMatchObject({
+      httpStatus: 404,
+      error: { kind: "http" },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    [405, "does not allow POST"],
+    [410, "no longer available"],
+    [502, "server or gateway failed"],
+  ])("classifies HTTP %s independently of JSON validity", async (status, message) => {
+    const client = new McpClient({
+      endpoint,
+      fetchImpl: vi.fn(async () => new Response("invalid JSON", {
+        status: Number(status),
+        headers: { "Content-Type": "application/json" },
+      })),
+    });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "http",
+      message: expect.stringContaining(String(message)),
+    });
+  });
+  it("preserves a 404 JSON-RPC code and sanitized evidence without replacing the HTTP diagnosis", async () => {
+    const secret = "private-server-token";
+    const client = new McpClient({
+      endpoint,
+      headers: { Authorization: `Bearer ${secret}` },
+      fetchImpl: vi.fn(async () => Response.json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: `Not found: ${secret}`, data: { detail: secret } },
+      }, { status: 404 })),
+    });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "http",
+      code: -32001,
+      message: expect.stringContaining("HTTP 404"),
+      data: { detail: "[REDACTED]" },
+    });
+    expect(JSON.stringify(client.records)).not.toContain(secret);
+  });
+  it.each([401, 404, 503])("does not wait for an unbounded SSE body after HTTP %s", async (status) => {
+    const cancel = vi.fn();
+    const client = new McpClient({
+      endpoint,
+      timeoutMs: 100,
+      fetchImpl: vi.fn(async () => new Response(new ReadableStream({ cancel }), {
+        status,
+        headers: { "Content-Type": "text/event-stream" },
+      })),
+    });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: status === 401 ? "authentication" : "http",
+      message: expect.stringContaining(`HTTP ${status}`),
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+  it.each([200, 403])("recognizes an accessible FortiGuard block page with HTTP %s", async (status) => {
+    const client = new McpClient({
+      endpoint,
+      fetchImpl: vi.fn(async () => new Response(
+        "<html><title> Web Filter Violation </title><h1>Prevención de intrusiones de FortiGuard: acceso bloqueado</h1></html>",
+        { status, headers: { "Content-Type": "text/html; charset=utf-8" } },
+      )),
+    });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "http",
+      message: expect.stringContaining("FortiGuard network restriction page"),
+    });
+  });
+  it("does not infer a firewall from a generic 403 or a JSON payload mentioning FortiGuard", async () => {
+    const denied = new McpClient({
+      endpoint,
+      fetchImpl: vi.fn(async () => new Response("Forbidden", { status: 403 })),
+    });
+    await expect(denied.discover()).rejects.toMatchObject({ kind: "authentication" });
+    const { client } = mockServer({
+      "server/discover": {
+        ...discovery,
+        instructions: "<title>Web Filter Violation</title> FortiGuard",
+      },
+    });
+    await expect(client.discover()).resolves.toMatchObject(discovery);
+  });
+  it.each([
+    ["text/html", "<html><h1>Welcome</h1></html>"],
+    ["application/json", '{"ok":true}'],
+    ["application/json", "not JSON"],
+  ])("identifies a successful %s response that is not MCP", async (contentType, body) => {
+    const client = new McpClient({
+      endpoint,
+      fetchImpl: vi.fn(async () => new Response(body, {
+        headers: { "Content-Type": contentType },
+      })),
+    });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "protocol",
+      message: expect.stringMatching(/not a valid MCP response/i),
+    });
+    expect(client.records[0]?.httpStatus).toBe(200);
+  });
+  it("records invalid discovery metadata as a protocol failure instead of a successful request", async () => {
+    const { client } = mockServer({ "server/discover": { capabilities: {} } });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "protocol",
+      message: expect.stringContaining("Not a valid MCP discovery response"),
+    });
+    expect(client.records[0]?.error?.kind).toBe("protocol");
+  });
+  it("distinguishes interrupted response bodies from an inaccessible HTTP response", async () => {
+    const client = new McpClient({
+      endpoint,
+      fetchImpl: vi.fn(async () => new Response(new ReadableStream({
+        start(controller) { controller.error(new TypeError("connection reset")); },
+      }), { headers: { "Content-Type": "application/json" } })),
+    });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "network",
+      message: expect.stringContaining("HTTP 200: the connection was interrupted"),
+    });
+    expect(client.records[0]?.httpStatus).toBe(200);
   });
   it("redacts credentials from configured headers, echoed responses and logs", async () => {
     const records: RequestRecord[] = [];

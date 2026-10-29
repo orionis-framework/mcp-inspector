@@ -118,7 +118,7 @@ export async function runSafeTests(
           : `${kind}: ${error instanceof Error ? error.message : "Request failed."}`,
         recommendation:
           kind === "network"
-            ? "Possible CORS block or connectivity issue. Inspect the browser network panel; no server defect is established."
+            ? "Inspect the browser network panel and terminal diagnostics for DNS, TLS certificates, network restrictions and CORS. The failure alone does not establish the cause."
             : "Inspect the request record for details.",
       });
     }

@@ -115,9 +115,33 @@ Access-Control-Allow-Headers: Content-Type, Accept, Authorization, MCP-Protocol-
 Access-Control-Expose-Headers: Content-Type, MCP-Protocol-Version, MCP-Method, MCP-Name, Retry-After, Server-Timing
 ```
 
-Apply that policy to preflight and actual responses, including authentication failures. Add each custom authentication or `x-mcp-header` name your endpoint accepts. Allow the exact development origin separately when testing locally. Do not copy a wildcard allowlist into an authenticated production service. This is illustrative HTTP configuration, not a claimed Orionis configuration API. Use your server framework's documented CORS middleware and Orionis origin validation together.
+Apply that policy to preflight and actual responses, including authentication failures. Add each custom authentication or `x-mcp-header` name your endpoint accepts. Allow the exact development origin separately when testing locally.
 
-An opaque Fetch failure is shown as **“Possible CORS block or connectivity problem”** (or **“Posible bloqueo CORS o problema de conectividad”** in Spanish). It may instead mean DNS, TLS, mixed content, connectivity or browser access policy. Confirm CORS using browser developer tools and server logs. cURL exports are useful for comparing server behavior, but cURL does not enforce browser CORS. Hidden response headers are unknown, not absent. Latency includes browser, network, parsing and server work; it is not a server-only benchmark.
+### Orionis environment variables
+
+The **Orionis server setup** panel is available before connecting and contains a copyable example. In the standard Orionis configuration, put these variables in your application's `.env` and restart Orionis:
+
+```dotenv
+CORS_ALLOW_ORIGINS="list:['https://inspector.orionis-framework.com']"
+CORS_ALLOW_METHODS="list:['POST', 'OPTIONS']"
+CORS_ALLOW_HEADERS="list:['*']"
+```
+
+Keep other origins and HTTP methods required by your application. The UI example also includes the current inspector origin when running locally. Retain only the origins you use. The wildcard above permits request **headers**, including custom authentication and MCP parameter headers; it does not permit arbitrary origins. For a narrower header policy, enumerate all header names used by your requests. MCP requires explicit HTTP(S) origins in `CORS_ALLOW_ORIGINS` and does not accept `*` there.
+
+`config/mcp.py` uses `allowed_origins` to validate the request's `Origin`. `config/http.py` configures the HTTP CORS middleware and the `Access-Control-Allow-*` response headers. Both read `CORS_ALLOW_ORIGINS` through `Env.get(...)` in the standard configuration. An existing environment value, even `list:[]`, takes precedence over the fallback in Python. Editing only the fallback in `config/mcp.py` therefore does not configure HTTP CORS. The standard Orionis pipeline handles preflight without a separate MCP OPTIONS route. The inspector sends no cookies and does not require `CORS_ALLOW_CREDENTIALS=True`; retain the credentials policy your other clients require.
+
+An OPTIONS response with `HTTP 200 OK` and `Allow: OPTIONS, POST` proves only that an HTTP server responded. It must also include the correct `Access-Control-Allow-Origin`, permit POST in `Access-Control-Allow-Methods` and permit every requested header in `Access-Control-Allow-Headers`. The POST response needs `Access-Control-Allow-Origin` too.
+
+### Distinguishing connection failures
+
+The first request is a read-only `server/discover` POST. When Fetch exposes a response, the inspector can distinguish an HTTP error from an incompatible media type or an invalid MCP response. A visible `404` means the requested route was not found; it does not mean the hostname does not exist. A `200` HTML page or ordinary JSON response is not proof of a valid MCP endpoint. A missing unexposed response header alone cannot establish incompatibility.
+
+When Fetch exposes no response, the cause remains unknown: DNS, TLS, firewall or proxy restrictions, mixed content, redirects and CORS can produce the same browser failure. The inspector does not label this as confirmed CORS or automatically declare the URL nonexistent. Compare browser developer tools and server logs with the credential-free cURL preflight. Terminal evidence is analyzed locally in the connection diagnostics; it is not sent to a service or used to award an MCP quality score.
+
+`curl: (60)` with `SEC_E_UNTRUSTED_ROOT` identifies a certificate-trust failure, not proof of CORS or of a firewall. A FortiGuard block page explicitly reporting **Web Filter Violation**, **access blocked** or **acceso bloqueado** provides separate evidence of a network restriction. Have the network administrator review that restriction or the certificate trust chain. Disabling TLS verification is not a connection fix.
+
+cURL does not enforce browser CORS. Hidden browser response headers are unknown, not absent. Latency includes browser, network, parsing and server work; it is not a server-only benchmark.
 
 ## Scoring and coverage
 

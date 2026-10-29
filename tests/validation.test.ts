@@ -607,7 +607,7 @@ describe("safe automatic runner", () => {
     ).toMatchObject({ status: "Blocked" });
     expect(
       output.tests.find((test) => test.id === "RUN-DISCOVERY")?.recommendation,
-    ).toContain("Possible CORS block");
+    ).toContain("terminal diagnostics");
     expect(output.tests.find((test) => test.id === "RUN-TOOLS")?.status).toBe(
       "Blocked",
     );

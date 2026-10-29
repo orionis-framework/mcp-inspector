@@ -60,6 +60,31 @@ const object = (value: unknown): value is JsonObject =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const MAX_BYTES = 5_000_000;
 
+function httpFailure(status: number): string {
+  if (status === 404)
+    return "HTTP 404: endpoint path not found. An HTTP service responded; check the MCP URL and route.";
+  if (status === 410)
+    return "HTTP 410: this endpoint is no longer available. Check the current MCP URL.";
+  if (status === 405)
+    return "HTTP 405: this endpoint does not allow POST. Check the MCP route and transport.";
+  if (status === 401 || status === 403)
+    return `HTTP ${status}: authentication, authorization or Origin policy rejected the request`;
+  if (status >= 500)
+    return `HTTP ${status}: the server or gateway failed to handle the request. MCP validity could not be verified.`;
+  return `HTTP ${status}: the endpoint rejected the request. Inspect the response and endpoint configuration.`;
+}
+
+/** Require an identifiable HTML block page, not a server payload mentioning a vendor. */
+function isNetworkBlockPage(body: string, contentType?: string): boolean {
+  return (
+    contentType === "text/html" &&
+    /<(?:html|title|h1)\b/i.test(body) &&
+    /forti(?:guard|net)/i.test(body) &&
+    (/<title>\s*Web Filter Violation\s*<\/title>/i.test(body) ||
+      /<h[1-3][^>]*>[^<]*(?:FortiGuard|Fortinet)[^<]*(?:access blocked|acceso bloqueado)[^<]*<\/h[1-3]>/i.test(body))
+  );
+}
+
 export function validateEndpoint(endpoint: string): string {
   let url: URL;
   try {
@@ -329,8 +354,20 @@ export class McpClient {
       const contentType = response.headers
         .get("content-type")
         ?.split(";")[0]
-        ?.trim();
+        ?.trim()
+        ?.toLowerCase();
       let envelope: unknown;
+      // An HTTP error stream is not a successful MCP stream. Do not wait for an
+      // unbounded error body and then misreport an already-observed status as a timeout.
+      if (!response.ok && contentType === "text/event-stream") {
+        void response.body?.cancel().catch(() => undefined);
+        throw new McpError(
+          response.status === 401 || response.status === 403
+            ? "authentication"
+            : "http",
+          httpFailure(response.status),
+        );
+      }
       if (contentType === "text/event-stream") {
         let acknowledged = false;
         record.bytes = await consumeSse(
@@ -415,46 +452,59 @@ export class McpClient {
         const body = await readBody(response, controller.signal);
         record.bytes = new TextEncoder().encode(body).byteLength;
         record.response = this.safe(body);
-        if (response.status === 401 || response.status === 403) {
-          try {
-            envelope = JSON.parse(body);
-            record.response = this.safe(envelope);
-          } catch {
-            /* Preserve readable HTTP evidence. */
-          }
-          const rpcError =
-            object(envelope) && object(envelope.error)
-              ? envelope.error
-              : undefined;
+        if (isNetworkBlockPage(body, contentType))
           throw new McpError(
-            "authentication",
-            `HTTP ${response.status}: authentication, authorization or Origin policy rejected the request`,
-            typeof rpcError?.code === "number" ? rpcError.code : undefined,
-          );
-        }
-        if (contentType !== "application/json")
-          throw new McpError(
-            response.ok ? "protocol" : "http",
-            `HTTP ${response.status}: expected application/json or text/event-stream; received ${contentType ?? "no Content-Type"}`,
+            "http",
+            `HTTP ${response.status}: the response contains a FortiGuard network restriction page. Ask the network administrator to review access to this endpoint; MCP validity could not be verified.`,
           );
         try {
           envelope = JSON.parse(body);
+          record.response = this.safe(envelope);
         } catch {
-          throw new McpError("protocol", "Response is not valid JSON");
+          // Preserve the readable body for HTTP errors and non-JSON endpoints.
         }
+        const rpcError =
+          object(envelope) && envelope.jsonrpc === "2.0" && object(envelope.error)
+            ? envelope.error
+            : undefined;
+        if (response.status === 401 || response.status === 403) {
+          throw new McpError(
+            "authentication",
+            httpFailure(response.status),
+            typeof rpcError?.code === "number" ? rpcError.code : undefined,
+          );
+        }
+        if (
+          !response.ok &&
+          ([404, 405, 410].includes(response.status) || response.status >= 500 || !rpcError)
+        )
+          throw new McpError(
+            "http",
+            httpFailure(response.status),
+            typeof rpcError?.code === "number" ? rpcError.code : undefined,
+            this.safe(rpcError?.data),
+          );
+        if (contentType !== "application/json")
+          throw new McpError(
+            response.ok ? "protocol" : "http",
+            `HTTP ${response.status}: not a valid MCP response. Expected application/json or text/event-stream; received ${contentType ?? "no Content-Type"}.`,
+          );
+        if (envelope === undefined)
+          throw new McpError(
+            "protocol",
+            "Not a valid MCP response: the response body is not valid JSON.",
+          );
       }
       record.response = this.safe(envelope);
-      if (response.status === 401 || response.status === 403)
-        throw new McpError(
-          "authentication",
-          `HTTP ${response.status}: authentication, authorization or Origin policy rejected the request`,
-        );
       if (
         !object(envelope) ||
         envelope.jsonrpc !== "2.0" ||
         "result" in envelope === "error" in envelope
       )
-        throw new McpError("protocol", "Invalid JSON-RPC response envelope");
+        throw new McpError(
+          "protocol",
+          "Not a valid MCP response: expected a JSON-RPC 2.0 envelope with one result or error.",
+        );
       if (
         envelope.id !== id &&
         !(!response.ok && envelope.id === undefined && "error" in envelope)
@@ -482,6 +532,22 @@ export class McpClient {
       if (!object(envelope.result))
         throw new McpError("protocol", "JSON-RPC result must be an object");
       const result = envelope.result as McpResult;
+      if (method === "server/discover") {
+        if (
+          !Array.isArray(result.supportedVersions) ||
+          !result.supportedVersions.every((v) => typeof v === "string") ||
+          !object(result.capabilities)
+        )
+          throw new McpError(
+            "protocol",
+            "Not a valid MCP discovery response: supportedVersions and capabilities are required.",
+          );
+        if (!result.supportedVersions.includes(MCP_VERSION))
+          throw new McpError(
+            "protocol",
+            `Server does not advertise MCP ${MCP_VERSION}`,
+          );
+      }
       if (
         result.resultType !== undefined &&
         !["complete", "input_required"].includes(result.resultType)
@@ -539,7 +605,9 @@ export class McpClient {
       else if (error instanceof TypeError)
         failure = new McpError(
           "network",
-          "Possible CORS block or connectivity issue. The browser did not expose a response; check CORS, TLS, DNS, mixed content, redirects and endpoint availability. Redirects are intentionally rejected to avoid forwarding credentials.",
+          record.httpStatus === undefined
+            ? "No accessible HTTP response. The browser cannot distinguish DNS, TLS certificate, firewall, CORS, mixed content or redirect failures. Check the browser network panel or analyze terminal output; MCP validity and endpoint existence are unverified."
+            : `HTTP ${record.httpStatus}: the connection was interrupted while reading the response. MCP validity could not be verified.`,
         );
       else
         failure = new McpError(
@@ -575,20 +643,6 @@ export class McpClient {
       {},
       options,
     );
-    if (
-      !Array.isArray(result.supportedVersions) ||
-      !result.supportedVersions.every((v) => typeof v === "string") ||
-      !object(result.capabilities)
-    )
-      throw new McpError(
-        "protocol",
-        "Discovery requires supportedVersions and capabilities",
-      );
-    if (!result.supportedVersions.includes(MCP_VERSION))
-      throw new McpError(
-        "protocol",
-        `Server does not advertise MCP ${MCP_VERSION}`,
-      );
     this.discovery = result;
     return result;
   }
