@@ -25,13 +25,18 @@ assert.ok(
 for (const entry of ["index.html", "es/index.html", "editor.html"]) {
   assert.ok(existsSync(join(dist, entry)), "Missing static HTML: " + entry);
   const html = read(join(dist, entry));
-  // Navigation/canonical links may be absolute. Every loaded asset must remain local.
+  // Navigation/canonical links and the Google Analytics loader may be absolute.
   for (const [tag] of html.matchAll(
     /<(?:script|link|img|iframe|source)\b[^>]*>/gi,
   )) {
     if (/\brel="(?:canonical|alternate)"/i.test(tag)) continue;
     const href = /(?:src|href)="([^"]+)"/.exec(tag)?.[1];
     if (!href || href.startsWith("#") || href.startsWith("data:")) continue;
+    if (
+      entry !== "editor.html" &&
+      /^<script\b/i.test(tag) &&
+      href === "https://www.googletagmanager.com/gtag/js?id=G-00KY9GMZQ0"
+    ) continue;
     assert.ok(
       !/^https?:/.test(href),
       entry + " must use local runtime assets: " + href,
