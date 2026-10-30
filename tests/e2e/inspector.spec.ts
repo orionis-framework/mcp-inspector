@@ -2,7 +2,17 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { connect, endpoint, mockMcp } from "./fixtures";
 
-test("static workspace loads without remote services or internal API routes", async ({
+const analyticsLoader =
+  "https://www.googletagmanager.com/gtag/js?id=G-00KY9GMZQ0";
+
+// Keep browser tests deterministic and avoid sending test traffic to Analytics.
+test.beforeEach(async ({ page }) => {
+  await page.route(analyticsLoader, (route) =>
+    route.fulfill({ contentType: "application/javascript", body: "" }),
+  );
+});
+
+test("static workspace loads with only the expected analytics loader and no internal API routes", async ({
   page,
 }, testInfo) => {
   const urls: string[] = [];
@@ -17,12 +27,19 @@ test("static workspace loads without remote services or internal API routes", as
     page.getByText("Not Verified", { exact: true }).first(),
   ).toBeVisible();
   expect(
-    urls.every((url) => new URL(url).origin === "http://127.0.0.1:4173"),
+    urls.every((url) => url === analyticsLoader || new URL(url).origin === "http://127.0.0.1:4173"),
   ).toBe(true);
   expect(urls.some((url) => new URL(url).pathname.startsWith("/api/"))).toBe(
     false,
   );
   expect(errors).toEqual([]);
+  expect(urls.filter((url) => url === analyticsLoader)).toHaveLength(1);
+  const analyticsCommands = await page.evaluate(() =>
+    Array.from((window as unknown as { dataLayer: ArrayLike<unknown>[] }).dataLayer, (command) => Array.from(command)),
+  );
+  expect(analyticsCommands.filter((command) => command[0] === "config")).toEqual([
+    ["config", "G-00KY9GMZQ0"],
+  ]);
   await page.screenshot({
     path: testInfo.outputPath("desktop-workspace.png"),
     fullPage: true,
@@ -117,6 +134,7 @@ test("discovery, pagination and manual tool calls carry stateless headers and me
     networkUrls.every(
       (url) =>
         url === endpoint ||
+        url === analyticsLoader ||
         new URL(url).origin === "http://127.0.0.1:4173" ||
         url.startsWith("blob:"),
     ),
