@@ -1,6 +1,7 @@
 import { translate, translateGenerated, type Locale } from "../../i18n";
-import type { RequestRecord } from "../../types/mcp";
+import { MCP_VERSION, type RequestRecord } from "../../types/mcp";
 import { redact, redactUrl } from "../../utils/redact";
+import { sanitizeFinding, sanitizeRecord, sanitizeScore } from "../../utils/sanitize";
 
 export interface ReportSnapshot {
   endpoint: string;
@@ -34,17 +35,40 @@ function safeSnapshot(
   secrets: string[] = [],
   locale: Locale = "en",
 ) {
-  return redact(
-    {
-      format: "orionis-mcp-inspector-report/1",
-      ...snapshot,
-      language: locale,
-      generatedAt: snapshot.generatedAt ?? new Date().toISOString(),
-      endpoint: redactUrl(snapshot.endpoint),
-      limitations,
-    },
-    secrets,
-  );
+  let queryValues: string[] = [];
+  try {
+    queryValues = [...new URL(snapshot.endpoint).searchParams.values()];
+  } catch {
+    // Invalid endpoints may be included in failed-connection reports.
+  }
+  const sanitize = <T>(value: T): T => redact(value, [...secrets, ...queryValues]);
+  const generatedAt = snapshot.generatedAt ?? new Date().toISOString();
+  const safe = sanitize(snapshot);
+  if (snapshot.protocolVersion === MCP_VERSION) safe.protocolVersion = MCP_VERSION;
+  const discovery = snapshot.discovery;
+  const safeDiscovery = safe.discovery;
+  if (discovery && typeof discovery === "object" && !Array.isArray(discovery) &&
+      safeDiscovery && typeof safeDiscovery === "object" && !Array.isArray(safeDiscovery)) {
+    const original = discovery as Record<string, unknown>;
+    const output = safeDiscovery as Record<string, unknown>;
+    if (original.resultType === "complete") output.resultType = "complete";
+    if (Array.isArray(original.supportedVersions))
+      output.supportedVersions = original.supportedVersions.map((version) =>
+        version === MCP_VERSION ? MCP_VERSION : sanitize(version));
+  }
+  return {
+    ...safe,
+    format: "orionis-mcp-inspector-report/1",
+    language: locale,
+    generatedAt: /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(generatedAt)
+      ? generatedAt : sanitize(generatedAt),
+    endpoint: sanitize(redactUrl(snapshot.endpoint)),
+    limitations,
+    tests: snapshot.tests?.map((test) => sanitizeFinding(test, sanitize)),
+    diagnostics: snapshot.diagnostics?.map((test) => sanitizeFinding(test, sanitize)),
+    score: sanitizeScore(snapshot.score, sanitize),
+    history: snapshot.history?.map((record) => sanitizeRecord(record, sanitize)),
+  };
 }
 
 export function exportReportJson(

@@ -19,6 +19,9 @@ import {
 import type { TestResult } from "@/core/validation/types";
 import type {
   JsonObject,
+  McpResult,
+  ResourceResult,
+  PromptResult,
   CompletionReference,
   SubscriptionFilter,
 } from "@/types/mcp";
@@ -53,9 +56,10 @@ function Detail() {
   } = useInspector();
   const [json, setJson] = useState("{}");
   const [tab, setTab] = useState("JSON");
-  const [result, setResult] = useState<unknown>();
+  const [result, setResult] = useState<McpResult>();
   const [error, setError] = useState("");
   const [errorIsServer, setErrorIsServer] = useState(false);
+  const display = <T,>(value: T): T => client?.sanitize(value) ?? redact(value);
   const captureError = (value: unknown) => {
     setErrorIsServer(value instanceof McpError && value.code !== undefined);
     setError(
@@ -134,8 +138,13 @@ function Detail() {
         selection.kind === "resource" ||
         selection.kind === "template"
       ) {
-        data = await client.readResource(resourceUri, opts);
-        saveTests(validateResourceResult(resourceUri, data));
+        data = await client.readResource(resourceUri, {
+          ...opts,
+          validateResult: (raw) =>
+            saveTests(validateResourceResult(resourceUri, raw as ResourceResult)),
+        });
+        if (data.resultType === "input_required")
+          saveTests(validateResourceResult(resourceUri, data));
       } else if (selection.kind === "prompt" && prompt) {
         const args = JSON.parse(json) as Record<string, string>;
         if (
@@ -148,10 +157,15 @@ function Detail() {
             "Prompt arguments must be an object of string values.",
           );
         for (const a of prompt.arguments ?? [])
-          if (a.required && !args[a.name])
+          if (a.required && !Object.hasOwn(args, a.name))
             throw new Error("Required argument: " + a.name);
-        data = await client.getPrompt(prompt.name, args, opts);
-        saveTests(validatePromptResult(prompt.name, data));
+        data = await client.getPrompt(prompt.name, args, {
+          ...opts,
+          validateResult: (raw) =>
+            saveTests(validatePromptResult(prompt.name, raw as PromptResult)),
+        });
+        if (data.resultType === "input_required")
+          saveTests(validatePromptResult(prompt.name, data));
       } else if (selection.kind === "completions") {
         const ref: CompletionReference =
           completionType === "prompt"
@@ -274,7 +288,7 @@ function Detail() {
         </p>
         <pre className="data-block">
           {snapshot.discovery
-            ? pretty(snapshot.discovery)
+            ? pretty(display(snapshot.discovery))
             : t("Not discovered")}
         </pre>
       </div>
@@ -307,17 +321,17 @@ function Detail() {
         {t(selection.kind)} / {selection.name ?? t("Inspector")}
       </div>
       <div className="section-heading">
-        <h1>{String(title)}</h1>
+        <h1>{String(display(title))}</h1>
         <span className="badge">{t(selection.kind)}</span>
       </div>
       <p className="description">
-        {String(
+        {String(display(
           tool?.description ??
             resource?.description ??
             template?.description ??
             prompt?.description ??
             t("Explore this optional server capability."),
-        )}
+        ))}
       </p>
       {tool && (
         <>
@@ -358,6 +372,7 @@ function Detail() {
           {tab === "Form" ? (
             <SchemaForm
               schema={tool.inputSchema}
+              sanitizeText={display}
               onApply={(value) => {
                 setJson(pretty(value));
                 setTab("JSON");
@@ -365,11 +380,11 @@ function Detail() {
             />
           ) : tab === "Schema" ? (
             <pre className="data-block">
-              {pretty({
+              {pretty(display({
                 inputSchema: tool.inputSchema,
                 outputSchema: tool.outputSchema,
                 annotations: tool.annotations,
-              })}
+              }))}
             </pre>
           ) : (
             <Suspense fallback={<p>{t("Loading local editor…")}</p>}>
@@ -380,7 +395,7 @@ function Detail() {
       )}
       {prompt && (
         <>
-          <pre className="data-block">{pretty(prompt.arguments ?? [])}</pre>
+          <pre className="data-block">{pretty(display(prompt.arguments ?? []))}</pre>
           <label className="field">
             <span>{t("Arguments (JSON object of string values)")}</span>
             <textarea
@@ -525,6 +540,15 @@ function Detail() {
       {checks.map((c) => (
         <Finding key={c.id} test={c} />
       ))}
+      {result?.resultType === "input_required" && (
+        <div className="finding warning" role="status">
+          <p>
+            {t(
+              "This operation is incomplete. The server requested a continuation; this Inspector displays the response but does not continue MRTR requests. Use a client supporting the required input capability or requestState continuation.",
+            )}
+          </p>
+        </div>
+      )}
       {result !== undefined && (
         <div className="result">
           <div className="section-heading">

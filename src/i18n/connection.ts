@@ -1,4 +1,10 @@
 export const connectionEs: Record<string, string> = {
+  "The mcp query parameter is empty. Enter an MCP endpoint to connect.":
+    "El parámetro mcp está vacío. Introduce un endpoint MCP para conectar.",
+  "MCP endpoint loaded from the link. Review it, then select Connect.":
+    "Endpoint MCP cargado desde el enlace. Revísalo y selecciona Conectar.",
+  "The mcp query parameter is invalid. Use a complete HTTP or HTTPS URL without credentials or a fragment.":
+    "El parámetro mcp no es válido. Usa una URL HTTP o HTTPS completa, sin credenciales ni fragmentos.",
   "HTTP 404: endpoint path not found. An HTTP service responded; check the MCP URL and route.":
     "HTTP 404: no se encontró la ruta del endpoint. Un servicio HTTP respondió; revisa la URL y la ruta MCP.",
   "HTTP 410: this endpoint is no longer available. Check the current MCP URL.":

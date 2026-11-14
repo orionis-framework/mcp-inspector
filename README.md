@@ -2,7 +2,7 @@
 
 **Inspect, Test & Validate Your MCP Servers**
 
-An independent React application for inspecting MCP `2026-07-28` stateless HTTP servers directly from a browser. The production artifact is the static `dist/` directory. GitHub Pages serves the application; the browser sends MCP traffic to the endpoint selected by its user. There is no application backend, proxy, database, serverless function, telemetry collector or mandatory hosted service.
+An independent React application for inspecting MCP `2026-07-28` stateless HTTP servers directly from a browser. The production artifact is the static `dist/` directory. GitHub Pages serves the application; the browser sends MCP traffic to the endpoint selected by its user. There is no application backend, proxy, database, serverless function or MCP relay. Ordinary visits load Google Analytics; endpoint links containing `mcp` do not.
 
 Deployment target: **https://inspector.orionis-framework.com/**. Source repository: [orionis-framework/mcp-inspector](https://github.com/orionis-framework/mcp-inspector). The deployment branch is `master`.
 
@@ -17,6 +17,30 @@ pnpm dev
 
 Open the URL printed by Vite. The inspector uses static English (`/`) and Spanish (`/es/`) entry pages. Both work on a direct visit or reload without server rewrites. Enter a full HTTP(S) MCP endpoint, configure authentication if needed, and connect. From an HTTPS deployment, use an HTTPS endpoint: browsers may block insecure mixed content. Loopback/local network access is also subject to browser permissions and network policy.
 
+### Open a server from a link
+
+Use the optional `mcp` query parameter to prefill the initial endpoint:
+
+```text
+https://inspector.orionis-framework.com/?mcp=https%3A%2F%2Fexample.com%2Fmcp
+https://inspector.orionis-framework.com/es/?mcp=http%3A%2F%2Flocalhost%3A8000%2Fmcp
+```
+
+Generate a link with `"https://inspector.orionis-framework.com/?mcp=" + encodeURIComponent(endpoint)`.
+Encoding the entire endpoint once preserves paths, ports and its own query parameters.
+Review the prefilled address and select **Connect**; opening a link never sends MCP
+requests automatically. The address remains editable. Reloading or reopening the
+link restores its initial address, and changing language preserves the link without
+reconnecting. If repeated, the first `mcp` value is used. Missing `mcp` preserves
+the original empty, manual connection flow.
+
+Empty or invalid values show a recoverable message. Only absolute HTTP(S) URLs
+without userinfo or fragments are accepted, through the same validator as manual
+connections. Local/private addresses are not arbitrarily blocked; browser network
+policies still apply. Keep credentials out of shared links: URLs can appear in
+browser history and static hosting logs. Analytics is not loaded on visits containing
+`mcp`, and the page sends no referrer.
+
 ```sh
 pnpm typecheck
 pnpm lint
@@ -28,6 +52,13 @@ pnpm preview
 ```
 
 On Linux CI, use `pnpm exec playwright install --with-deps chromium`. Commit `pnpm-lock.yaml` when dependencies change. `pnpm build` runs TypeScript, Vite and `scripts/verify-build.mjs`; the latter verifies the static artifact, domain marker, root-based entry assets and absence of unresolved Node imports or internal API routes. Browser tests use controlled MCP mocks; they do not send commands to a real production server.
+
+`pnpm test:orionis` runs a separate integration suite against the actual Orionis
+Python compiler, dispatcher and HTTP transport with isolated test handlers. It
+requires a framework checkout and Python environment; see
+[the integration instructions](docs/ORIONIS_INTEGRATION.md). The
+[2026-11-14 compatibility audit](docs/AUDIT-2026-11-14.md) records the source revision,
+capability matrix, corrections and deliberate limitations.
 
 ## Visual identity
 
@@ -91,6 +122,13 @@ Implemented operations are `server/discover`, `tools/list`, `tools/call`, `resou
 
 Advanced extensions such as elicitation, tasks and MCP Apps are not negotiated unless implemented. Returned content is treated as data, never executable HTML or instructions. The app cannot use STDIO transports from a static browser environment. Legacy handshake protocols are outside its scope.
 
+The primary compatibility reference is the actual `framework/orionis/mcp` source.
+`input_required` results, including request-state-only MRTR continuations, are
+displayed as incomplete operations. This version has no continuation UI and never
+replays them automatically. Required prompt arguments may be empty strings when
+the server contract permits them. Subscription notifications are checked against
+the filters actually acknowledged by the server, which may be narrower than requested.
+
 Schema validation supports JSON Schema 2020-12 (the default) and draft-07. Remote references are never fetched. Schemas exceeding bounded browser inspection limits or requiring unavailable references are reported as not tested rather than being treated as invalid server schemas. Tool output schemas are checked against the raw response before sensitive values are removed from display and exports.
 
 See [the protocol notes](docs/PROTOCOL.md) and these references, checked during implementation on 2026-10-28:
@@ -135,7 +173,7 @@ An OPTIONS response with `HTTP 200 OK` and `Allow: OPTIONS, POST` proves only th
 
 ### Distinguishing connection failures
 
-The first request is a read-only `server/discover` POST. When Fetch exposes a response, the inspector can distinguish an HTTP error from an incompatible media type or an invalid MCP response. A visible `404` means the requested route was not found; it does not mean the hostname does not exist. A `200` HTML page or ordinary JSON response is not proof of a valid MCP endpoint. A missing unexposed response header alone cannot establish incompatibility.
+The first request is a read-only `server/discover` POST. When Fetch exposes a response, the inspector can distinguish an HTTP error from an incompatible media type or an invalid MCP response. A non-RPC `404` identifies a missing HTTP route; an Orionis JSON-RPC `-32601`/404 identifies an unsupported method. Neither means the hostname does not exist. A `200` HTML page or ordinary JSON response is not proof of a valid MCP endpoint. A missing unexposed response header alone cannot establish incompatibility.
 
 When Fetch exposes no response, the cause remains unknown: DNS, TLS, firewall or proxy restrictions, mixed content, redirects and CORS can produce the same browser failure. The inspector does not label this as confirmed CORS or automatically declare the URL nonexistent. Compare browser developer tools and server logs with the credential-free cURL preflight. Terminal evidence is analyzed locally in the connection diagnostics; it is not sent to a service or used to award an MCP quality score.
 

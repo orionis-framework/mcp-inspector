@@ -16,7 +16,7 @@ export async function consumeSse(
   let id: string | undefined;
   let lines: string[] = [];
   const abort = () => {
-    void reader.cancel();
+    void reader.cancel().catch(() => undefined);
   };
   signal.addEventListener("abort", abort, { once: true });
   const dispatch = (): boolean => {

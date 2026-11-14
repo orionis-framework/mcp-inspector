@@ -43,7 +43,9 @@ import { useI18n } from "@/i18n/react";
 import { translateGenerated, type Locale } from "@/i18n";
 import { updatePageMetadata, localeFromPath } from "@/seo/browser";
 import { APP_VERSION } from "@/version";
-export default function App() {
+import { MCP_VERSION } from "@/types/mcp";
+import { sanitizeFinding, sanitizeScore } from "@/utils/sanitize";
+export default function App({ initialNotice = "" }: { initialNotice?: string }) {
   const { t, locale, setLocale } = useI18n();
   useEffect(() => {
     updatePageMetadata(locale);
@@ -66,7 +68,7 @@ export default function App() {
   const [probeBusy, setProbeBusy] = useState(false);
   const probeController = useRef<AbortController | null>(null);
   useEffect(() => () => probeController.current?.abort(), []);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(initialNotice);
   const [explorer, setExplorer] = useState(true);
   const [diagnostics, setDiagnostics] = useState(true);
   const [consoleOpen, setConsoleOpen] = useState(true);
@@ -109,25 +111,38 @@ export default function App() {
     setCustom("{}");
     setApproved(false);
   };
-  const data = (): ReportSnapshot => ({
-    endpoint:
-      s.snapshot.records[0]?.endpoint ?? s.client?.endpoint ?? s.endpoint,
-    protocolVersion: s.snapshot.discovery?.supportedVersions.join(", "),
-    discovery: s.snapshot.discovery,
-    serverInfo:
-      s.snapshot.discovery?._meta?.["io.modelcontextprotocol/serverInfo"],
-    capabilities: s.snapshot.discovery?.capabilities,
-    tools: s.snapshot.tools,
-    resources: s.snapshot.resources,
-    resourceTemplates: s.snapshot.templates,
-    prompts: s.snapshot.prompts,
-    tests: s.tests,
-    score,
-    coverage: score.coverage,
-    diagnostics: s.tests.filter((t) => t.status !== "Passed"),
-    metrics: metric,
-    history: s.snapshot.records,
-  });
+  const data = (): ReportSnapshot => {
+    const snapshot: ReportSnapshot = {
+      endpoint:
+        s.snapshot.records[0]?.endpoint ?? s.client?.endpoint ?? s.endpoint,
+      protocolVersion: s.snapshot.discovery?.supportedVersions.join(", "),
+      discovery: s.snapshot.discovery,
+      serverInfo:
+        s.snapshot.discovery?._meta?.["io.modelcontextprotocol/serverInfo"],
+      capabilities: s.snapshot.discovery?.capabilities,
+      tools: s.snapshot.tools,
+      resources: s.snapshot.resources,
+      resourceTemplates: s.snapshot.templates,
+      prompts: s.snapshot.prompts,
+      tests: s.tests,
+      score,
+      coverage: score.coverage,
+      diagnostics: s.tests.filter((t) => t.status !== "Passed"),
+      metrics: metric,
+      history: s.snapshot.records,
+    };
+    const sanitize = <T,>(value: T): T => s.client?.sanitize(value) ?? value;
+    return {
+      ...sanitize(snapshot),
+      protocolVersion: snapshot.protocolVersion === MCP_VERSION
+        ? MCP_VERSION : sanitize(snapshot.protocolVersion),
+      tests: s.tests.map((test) => sanitizeFinding(test, sanitize)),
+      diagnostics: s.tests.filter((test) => test.status !== "Passed")
+        .map((test) => sanitizeFinding(test, sanitize)),
+      score: sanitizeScore(score, sanitize),
+      history: s.snapshot.records,
+    };
+  };
   const exportReport = async (format: string) => {
     try {
       const snapshot = data();
@@ -301,7 +316,10 @@ export default function App() {
               placeholder="https://your-server.com/mcp"
               value={s.endpoint}
               disabled={s.connected || s.busy}
-              onChange={(e) => s.setEndpoint(e.target.value)}
+              onChange={(e) => {
+                setNotice("");
+                s.setEndpoint(e.target.value);
+              }}
               required
               type="url"
               autoComplete="off"

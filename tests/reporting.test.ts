@@ -11,6 +11,8 @@ import {
   requestAsJson,
 } from "../src/core/reporting";
 import type { RequestRecord } from "../src/types/mcp";
+import { redact } from "../src/utils/redact";
+import { sanitizeFinding, sanitizeScore } from "../src/utils/sanitize";
 
 const record: RequestRecord = {
   id: "test-1",
@@ -38,6 +40,110 @@ const record: RequestRecord = {
 };
 
 describe("local report exports", () => {
+  it.each(["Passed", "protocol", "client", "info", "Ready", "Excellent"])(
+    "keeps inspector verdicts meaningful when a query value is %s", (queryValue) => {
+      const verdict = {
+        id: "MCP-PROTOCOL-001",
+        status: "Passed", category: "protocol", severity: "info", component: "client",
+        evidence: `The server echoed ${queryValue} and private-value`,
+        label: `Server label ${queryValue}`, description: queryValue,
+      };
+      const snapshot = {
+        endpoint: "https://example.com/mcp?v=" + encodeURIComponent(queryValue),
+        tests: [verdict], diagnostics: [verdict],
+        score: { classification: "Excellent", readiness: "Ready", score: 100 },
+        tools: [{ name: queryValue, description: "private-value" }],
+      };
+      const data = JSON.parse(exportReportJson(snapshot, ["private-value"]));
+      for (const field of ["tests", "diagnostics"]) {
+        expect(data[field][0]).toMatchObject({
+          status: "Passed", category: "protocol", severity: "info", component: "client",
+        });
+        expect(data[field][0].evidence).not.toContain(queryValue);
+        expect(data[field][0].evidence).not.toContain("private-value");
+        expect(data[field][0].label).not.toContain(queryValue);
+        expect(data[field][0].description).toBe("[REDACTED]");
+      }
+      expect(data.score).toMatchObject({ classification: "Excellent", readiness: "Ready" });
+      expect(data.tools[0]).toEqual({ name: "[REDACTED]", description: "[REDACTED]" });
+      const html = exportReportHtml(snapshot, ["private-value"]);
+      expect(html).toContain('&quot;status&quot;: &quot;Passed&quot;');
+      expect(html).toContain('&quot;category&quot;: &quot;protocol&quot;');
+      expect(html).not.toContain("private-value");
+    },
+  );
+
+  it("redacts dynamic finding identities while keeping recognized internal codes", () => {
+    const sanitize = <T>(value: T) => redact(value, ["private-value", "MCP", "Passed"]);
+    const test = sanitizeFinding({
+      id: "MCP-OUTPUT:private-value", component: "tool:private-value",
+      status: "Passed", category: "protocol", severity: "info", evidence: "private-value Passed",
+    }, sanitize);
+    expect(test).toMatchObject({
+      id: "MCP-OUTPUT:[REDACTED]", component: "tool:[REDACTED]", status: "Passed",
+      category: "protocol", severity: "info", evidence: "[REDACTED] [REDACTED]",
+    });
+    expect(sanitizeFinding({ status: "private-value", id: "private-value" }, sanitize))
+      .toEqual({ status: "[REDACTED]", id: "[REDACTED]" });
+    expect(sanitizeScore({ readiness: "private-value" }, sanitize))
+      .toEqual({ readiness: "[REDACTED]" });
+  });
+
+  it("preserves history protocol constants and errors without restoring arbitrary response data", () => {
+    const id = "orionis-12345678-1234-1234-1234-123456789012-1";
+    const history: RequestRecord = {
+      ...record, id, endpoint: "https://example.com/mcp?v=2",
+      request: {
+        ...record.request, id,
+        params: {
+          name: "private-value", arguments: { code: "2" },
+          _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" },
+        },
+      },
+      configuredHeaders: {
+        "MCP-Method": "tools/call", "MCP-Protocol-Version": "2026-07-28",
+        "Content-Type": "application/json", Authorization: "Bearer private-value",
+      },
+      response: {
+        jsonrpc: "2.0", id,
+        result: { resultType: "complete", cacheScope: "private", content: [{ type: "text", text: "2 protocol private-value" }] },
+      },
+      error: { kind: "protocol", message: "protocol private-value" },
+    };
+    const data = JSON.parse(exportReportJson({
+      endpoint: history.endpoint, history: [history], protocolVersion: "2026-07-28",
+      discovery: { resultType: "complete", supportedVersions: ["2026-07-28", "private-value"],
+        capabilities: {}, instructions: "private-value" },
+    }, ["protocol", "complete", "private", "private-value"]));
+    expect(data.protocolVersion).toBe("2026-07-28");
+    expect(data.discovery).toMatchObject({
+      resultType: "complete", supportedVersions: ["2026-07-28", "[REDACTED]"],
+      instructions: "[REDACTED]",
+    });
+    const exported = data.history[0];
+    expect(exported.id).toBe(id);
+    expect(exported.startedAt).toBe(history.startedAt);
+    expect(exported.request).toMatchObject({
+      jsonrpc: "2.0", id, method: "tools/call",
+      params: { name: "[REDACTED]", arguments: { code: "[REDACTED]" },
+        _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" } },
+    });
+    expect(exported.response).toMatchObject({ jsonrpc: "2.0", id,
+      result: { resultType: "complete", cacheScope: "private",
+        content: [{ type: "text", text: "[REDACTED] [REDACTED] [REDACTED]" }] } });
+    expect(exported.error).toEqual({ kind: "protocol", message: "[REDACTED] [REDACTED]" });
+    expect(exported.configuredHeaders["MCP-Protocol-Version"]).toBe("2026-07-28");
+    expect(exported.configuredHeaders.Authorization).toBe("[REDACTED]");
+  });
+
+  it("redacts arbitrary endpoint query values echoed inside operational catalogs", () => {
+    const snapshot = {
+      endpoint: "https://example.com/mcp?tenant=private-tenant",
+      tools: [{ name: "private-tenant_lookup", inputSchema: { enum: ["private-tenant"] } }],
+    };
+    for (const exportReport of [exportReportJson, exportReportHtml])
+      expect(exportReport(snapshot)).not.toContain("private-tenant");
+  });
   it("keeps execution evidence and coverage without credentials", () => {
     const report = exportReportJson(
       {

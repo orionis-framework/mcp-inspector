@@ -3,7 +3,8 @@ import { McpClient } from "@/core/mcp/client";
 import { runSafeTests } from "@/core/testing/runner";
 import { calculateScore, evaluate } from "@/core/validation";
 import type { Snapshot, TestResult } from "@/core/validation/types";
-import type { RequestRecord } from "@/types/mcp";
+import { MCP_VERSION, type RequestRecord } from "@/types/mcp";
+import { sanitizeFinding } from "@/utils/sanitize";
 
 export type Selection = {
   kind:
@@ -159,8 +160,22 @@ export const useInspector = create<State>((set, get) => ({
   },
   disconnect: () => {
     get().controller?.abort();
-    get().client?.disconnect();
+    const client = get().client;
+    const snapshot = client?.sanitize(get().snapshot) ?? get().snapshot;
+    // These records are already sanitized at the transport boundary.
+    snapshot.records = get().snapshot.records;
+    if (client && snapshot.discovery && get().snapshot.discovery)
+      snapshot.discovery.supportedVersions = get().snapshot.discovery!.supportedVersions.map(
+        (version) => version === MCP_VERSION ? version : client.sanitize(version),
+      );
+    const tests = get().tests.map((test) =>
+      sanitizeFinding(test, (value) => client?.sanitize(value) ?? value),
+    );
+    client?.disconnect();
     set({
+      snapshot,
+      tests,
+      selection: { kind: "overview" },
       client: undefined,
       controller: undefined,
       connected: false,

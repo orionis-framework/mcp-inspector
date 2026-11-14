@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useInspector, getScore } from "../src/stores/inspector";
 import { evaluate, finding } from "../src/core/validation";
 import type { Snapshot } from "../src/core/validation";
 import { MCP_VERSION } from "../src/types/mcp";
 import type { RequestRecord } from "../src/types/mcp";
+import { exportReportJson } from "../src/core/reporting";
 
 const record = (
   id: string,
@@ -52,6 +53,10 @@ const snapshot = (records: RequestRecord[]): Snapshot => ({
 });
 
 beforeEach(() => useInspector.setState(useInspector.getInitialState(), true));
+afterEach(() => {
+  useInspector.getState().client?.disconnect();
+  vi.unstubAllGlobals();
+});
 
 describe("manual evidence refresh in the workspace store", () => {
   it("replaces a previous protocol pass after a malformed manual response", () => {
@@ -192,3 +197,104 @@ it("clears the previous server score when a new endpoint cannot create a client"
     coverage: 0,
   });
 });
+
+it("keeps query-matching catalogs usable while sanitizing exports and retained disconnect evidence", async () => {
+  const queryValue = "private-catalog-marker";
+  const credential = "private-header-marker";
+  const endpoint = `https://example.com/mcp?region=eu&opaque=${queryValue}`;
+  const sent: { method: string; params: Record<string, unknown> }[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: RequestInit) => {
+    const request = JSON.parse(String(init.body)) as {
+      method: string;
+      params: Record<string, unknown>;
+      id: string;
+    };
+    sent.push(request);
+    const result: Record<string, unknown> = {
+      resultType: "complete",
+      _meta: { "io.modelcontextprotocol/serverInfo": { name: "Controlled store fixture", version: "1.0.0" } },
+      ...(request.method === "server/discover"
+        ? { supportedVersions: [MCP_VERSION], capabilities: { tools: {} }, ttlMs: 0, cacheScope: "private" }
+        : request.method === "tools/list"
+          ? {
+              ttlMs: 0,
+              cacheScope: "private",
+              tools: [{
+                name: "eu",
+                description: `${queryValue} ${credential}`,
+                inputSchema: {
+                  type: "object",
+                  properties: { region: { type: "string", enum: ["eu", "us"] } },
+                  required: ["region"],
+                },
+              }],
+            }
+          : { content: [{ type: "text", text: "Executed with exact arguments" }] }),
+    };
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }), {
+      headers: { "content-type": "application/json" },
+    });
+  }));
+  useInspector.getState().setEndpoint(endpoint);
+  await useInspector.getState().connect({ Authorization: `Bearer ${credential}` }, 15000);
+  const active = useInspector.getState();
+  expect(active.connected).toBe(true);
+  expect(active.snapshot.tools[0].name).toBe("eu");
+  expect(active.snapshot.tools[0].inputSchema.properties?.region.enum).toEqual(["eu", "us"]);
+  expect(active.snapshot.tools[0].description).toContain(queryValue);
+  await active.client!.callTool("eu", { region: "eu" });
+  expect(sent.at(-1)?.params).toMatchObject({ name: "eu", arguments: { region: "eu" } });
+  expect(JSON.stringify(active.client!.records)).not.toContain(queryValue);
+  expect(JSON.stringify(active.client!.records)).not.toContain(credential);
+
+  const activeReport = exportReportJson(active.client!.sanitize({
+    endpoint,
+    tools: active.snapshot.tools,
+    history: active.snapshot.records,
+  }));
+  expect(activeReport).not.toContain(queryValue);
+  expect(activeReport).not.toContain(credential);
+  expect(activeReport).not.toContain('"eu"');
+  useInspector.setState({
+    tests: [finding("custom", "Catalog evidence", "tools", "Warning", "tool:eu", `${queryValue} ${credential}`)],
+  });
+  useInspector.getState().disconnect();
+  const disconnected = useInspector.getState();
+  expect(disconnected.client).toBeUndefined();
+  expect(disconnected.connected).toBe(false);
+  const retained = JSON.stringify({ snapshot: disconnected.snapshot, tests: disconnected.tests });
+  expect(retained).not.toContain(queryValue);
+  expect(retained).not.toContain(credential);
+  expect(disconnected.snapshot.tools[0].name).toBe("[REDACTED]");
+  const disconnectedReport = exportReportJson({
+    endpoint,
+    tools: disconnected.snapshot.tools,
+    tests: disconnected.tests,
+    history: disconnected.snapshot.records,
+  });
+  expect(disconnectedReport).not.toContain(queryValue);
+  expect(disconnectedReport).not.toContain(credential);
+});
+
+it.each(["Passed", "protocol", "tools", "client", "2"])(
+  "retains scores and protocol identity after disconnect with query value %s",
+  async (queryValue) => {
+    vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init: RequestInit) => {
+      const request = JSON.parse(String(init.body)) as { id: string };
+      return Response.json({
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { resultType: "complete", supportedVersions: [MCP_VERSION], capabilities: {} },
+      });
+    }));
+    useInspector.getState().setEndpoint("https://example.com/mcp?v=" + queryValue);
+    await useInspector.getState().connect({}, 15000);
+    const score = getScore();
+    const records = useInspector.getState().snapshot.records;
+    useInspector.getState().disconnect();
+    expect(getScore()).toEqual(score);
+    expect(useInspector.getState().snapshot.records).toEqual(records);
+    expect(useInspector.getState().snapshot.discovery?.supportedVersions).toEqual([MCP_VERSION]);
+    expect(useInspector.getState().selection).toEqual({ kind: "overview" });
+  },
+);

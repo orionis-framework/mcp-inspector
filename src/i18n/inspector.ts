@@ -65,6 +65,8 @@ export const inspectorEs: Record<string, string> = {
   Listen: "Escuchar",
   "Execute request": "Ejecutar solicitud",
   Result: "Resultado",
+  "This operation is incomplete. The server requested a continuation; this Inspector displays the response but does not continue MRTR requests. Use a client supporting the required input capability or requestState continuation.":
+    "Esta operación está incompleta. El servidor solicitó una continuación; este Inspector muestra la respuesta, pero no continúa solicitudes MRTR. Utiliza un cliente que admita la capacidad de entrada requerida o la continuación con requestState.",
   "Export result": "Exportar resultado",
   "Execute this tool?": "¿Ejecutar esta herramienta?",
   "Tool calls may read or modify real data. Review the endpoint and arguments before sending.":

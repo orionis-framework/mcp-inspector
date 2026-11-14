@@ -1,6 +1,9 @@
 # Protocol implementation notes
 
-Contract reviewed on 2026-10-28 against:
+Contract reviewed on 2026-11-14 primarily against local Orionis Framework
+`1e905f4f103d47c61789d877eba472a5bd97681b`, `orionis/mcp`. See the
+[audit matrix](AUDIT-2026-11-14.md) and [real transport fixture](ORIONIS_INTEGRATION.md).
+Official references:
 
 - [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)
 - [Base protocol and JSON Schema dialects](https://modelcontextprotocol.io/specification/2026-07-28/basic)
@@ -40,13 +43,17 @@ The safe suite calls discovery and declared catalog methods. It does not call to
 
 Configured request headers are distinct from response headers exposed through Fetch. Browser-added headers, OPTIONS exchanges, TLS and TCP details are not available to this client. The browser performs any necessary preflight. A rejected Fetch without an exposed response is classified as an unverified connection failure, never proof of CORS, a nonexistent host, a network restriction or an MCP server defect.
 
-Discovery is the first read-only protocol request. Exposed HTTP statuses are evaluated separately from media type and MCP response validity: a 404 identifies a missing route, while a successful HTML response does not establish an MCP endpoint. Missing unexposed headers are not grounds for rejecting an otherwise valid server. No GET or HEAD probe is substituted for discovery, since a valid MCP POST endpoint may not support either method.
+Discovery is the first read-only protocol request. Exposed HTTP statuses are evaluated separately from media type and MCP response validity: a non-RPC 404 identifies a missing route, whereas a correlated JSON-RPC -32601/404 identifies an unsupported method. A successful HTML response does not establish an MCP endpoint. Missing unexposed headers are not grounds for rejecting an otherwise valid server. No GET or HEAD probe is substituted for discovery, since a valid MCP POST endpoint may not support either method.
 
 The connection help accepts terminal output as separate, user-supplied diagnostic evidence. A certificate trust error such as `SEC_E_UNTRUSTED_ROOT` does not establish CORS or firewall blocking. A block page explicitly naming a network filter can identify a network restriction. A successful OPTIONS response must still include the required `Access-Control-Allow-*` headers; `Allow` is not CORS permission. Terminal evidence is processed locally and never upgrades server verification or quality scores.
 
 The copyable Orionis `.env` example configures explicit `CORS_ALLOW_ORIGINS`, `CORS_ALLOW_METHODS` and request `CORS_ALLOW_HEADERS`. Standard `config/mcp.py` Origin validation and `config/http.py` CORS both read the origin variable, but enforce distinct parts of the browser-access policy. Existing environment values override Python fallbacks, and the application must restart to load changed configuration.
 
-`fetch` uses CORS mode, omits ambient cookies, rejects redirects and sends no referrer. Redirects therefore cannot forward credentials to another origin. Credentials in URL userinfo and manually overridden protocol/browser headers are rejected. Authentication headers and their known values are removed from recorded payloads and returned display data. No proxy, analytics, remote JSON Schema resolution or external runtime loader is used.
+`fetch` uses CORS mode, omits ambient cookies, rejects redirects and sends no referrer. Redirects therefore cannot forward credentials to another origin. Credentials in URL userinfo and manually overridden protocol/browser headers are rejected. Authentication headers and their known values are removed from recorded payloads and exported evidence. No proxy or remote JSON Schema resolution is used. Google Analytics loads only for ordinary visits without `mcp`; endpoint links never import it.
+
+Valid JSON-RPC errors returned with HTTP 4xx retain their protocol code and message,
+including Orionis `-32601`/404. Authentication/Origin rejections remain separately
+classified, and non-RPC 404 responses still identify missing HTTP routes.
 
 ## Streams, cancellation and bounds
 
@@ -61,6 +68,12 @@ AbortController cancels Fetch and body reading. HTTP cancellation does not guara
 ## Cache isolation
 
 Only documented cacheable methods with valid positive `ttlMs` and a declared cache scope are cached. Each client instance owns its endpoint and authentication context; private results never cross instances. Keys include method and parameters, and each page is cached independently. Continuation results and requests with continuation fields are not cached. Change notifications invalidate the cache, and safe tests explicitly bypass it. Cache use is labeled in request history and excluded from network latency evidence.
+
+Operational catalogs and opaque cursors are retained exactly in connection memory;
+redaction is applied to separate traffic records, exports and retained disconnected
+state. This prevents endpoint query values from changing tool names, JSON Schema
+enums, URI templates or pagination. Discovery capability shapes, completion payloads
+and accepted subscription filters are validated before being consumed by the UI.
 
 ## Deliberate limits
 

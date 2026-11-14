@@ -135,6 +135,40 @@ describe("stateless browser MCP transport", () => {
       call.body.id,
     );
   });
+  it("keeps operational names, schemas and opaque cursors exact while redacting evidence", async () => {
+    const requests: RpcRequest[] = [];
+    const contract = {
+      name: "eu_lookup",
+      inputSchema: {
+        type: "object",
+        properties: { region: { type: "string", enum: ["eu"], "x-mcp-header": "Region" } },
+      },
+    };
+    const client = new McpClient({
+      endpoint: endpoint + "?region=eu",
+      fetchImpl: vi.fn<typeof fetch>(async (_url, init) => {
+        const request = JSON.parse(String(init?.body)) as RpcRequest;
+        requests.push(request);
+        const result = request.method === "tools/list"
+          ? request.params.cursor === undefined
+            ? { tools: [contract], nextCursor: "cursor-eu", ttlMs: 1000, cacheScope: "private" }
+            : { tools: [], ttlMs: 1000, cacheScope: "private" }
+          : { content: [] };
+        return Response.json({ jsonrpc: "2.0", id: request.id, result });
+      }),
+    });
+    expect(await client.listTools()).toEqual([contract]);
+    expect(requests[1]?.params.cursor).toBe("cursor-eu");
+    // Cached operational data must preserve the same contract.
+    expect(await client.listTools()).toEqual([contract]);
+    await client.callTool("eu_lookup", { region: "eu" });
+    expect(requests.at(-1)?.params).toMatchObject({ name: "eu_lookup", arguments: { region: "eu" } });
+    expect(client.records[0]?.response).not.toEqual(expect.objectContaining({ result: expect.objectContaining({ tools: [contract] }) }));
+    expect(JSON.stringify(client.records)).not.toContain("eu_lookup");
+    expect(JSON.stringify(client.sanitize({ tools: [contract] }))).not.toContain("eu_lookup");
+    client.disconnect();
+    expect(JSON.stringify(client)).not.toContain("eu_lookup");
+  });
   it("validates raw tool output before redaction and returns only sanitized output", async () => {
     const secret = "private-output-value";
     const { fetchImpl } = mockServer({
@@ -365,23 +399,24 @@ describe("stateless browser MCP transport", () => {
       message: expect.stringContaining(String(message)),
     });
   });
-  it("preserves a 404 JSON-RPC code and sanitized evidence without replacing the HTTP diagnosis", async () => {
+  it("preserves a 404 JSON-RPC method error instead of declaring the endpoint missing", async () => {
     const secret = "private-server-token";
     const client = new McpClient({
       endpoint,
       headers: { Authorization: `Bearer ${secret}` },
       fetchImpl: vi.fn(async () => Response.json({
         jsonrpc: "2.0",
-        error: { code: -32001, message: `Not found: ${secret}`, data: { detail: secret } },
+        error: { code: -32601, message: `Method not found: ${secret}`, data: { detail: secret } },
       }, { status: 404 })),
     });
     await expect(client.discover()).rejects.toMatchObject({
-      kind: "http",
-      code: -32001,
-      message: expect.stringContaining("HTTP 404"),
+      kind: "protocol",
+      code: -32601,
+      message: "Method not found: [REDACTED]",
       data: { detail: "[REDACTED]" },
     });
     expect(JSON.stringify(client.records)).not.toContain(secret);
+    expect(client.records[0]?.httpStatus).toBe(404);
   });
   it.each([401, 404, 503])("does not wait for an unbounded SSE body after HTTP %s", async (status) => {
     const cancel = vi.fn();

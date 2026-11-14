@@ -34,6 +34,10 @@ export function updatePageMetadata(locale: Locale) {
       "\\u003c",
     );
   const path = localePath(locale);
-  if (window.location.pathname !== path || window.location.search)
-    window.history.replaceState(window.history.state, "", path);
+  // Keep the initial endpoint link usable across language changes and reloads.
+  // Canonical/social metadata above always describes only the public page.
+  const mcp = new URLSearchParams(window.location.search).get("mcp");
+  const query = mcp === null ? "" : "?" + new URLSearchParams({ mcp });
+  if (window.location.pathname + window.location.search !== path + query)
+    window.history.replaceState(window.history.state, "", path + query);
 }

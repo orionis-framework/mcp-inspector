@@ -11,12 +11,14 @@ function Field({
   schema,
   required,
   register,
+  sanitizeText,
   depth = 0,
 }: {
   name: string;
   schema: JsonSchema;
   required: boolean;
   register: UseFormRegister<FieldValues>;
+  sanitizeText?: (value: string) => string;
   depth?: number;
 }) {
   const { t } = useI18n();
@@ -47,6 +49,7 @@ function Field({
               schema={s}
               required={schema.required?.includes(key) ?? false}
               register={register}
+              sanitizeText={sanitizeText}
               depth={depth + 1}
             />
           ),
@@ -102,16 +105,18 @@ function Field({
           {...register(name, opts)}
         />
       )}
-      <small>{schema.description}</small>
+      <small>{sanitizeText?.(schema.description ?? "") ?? schema.description}</small>
     </label>
   );
 }
 export function SchemaForm({
   schema,
   onApply,
+  sanitizeText,
 }: {
   schema: JsonSchema;
   onApply: (value: unknown) => void;
+  sanitizeText?: (value: string) => string;
 }) {
   const { t } = useI18n();
   const {
@@ -121,7 +126,7 @@ export function SchemaForm({
   } = useForm();
   return (
     <form onSubmit={handleSubmit(onApply)}>
-      <Field name="" schema={schema} required={false} register={register} />
+      <Field name="" schema={schema} required={false} register={register} sanitizeText={sanitizeText} />
       {Object.keys(errors).length > 0 && (
         <p className="error">{t("Complete required fields.")}</p>
       )}
