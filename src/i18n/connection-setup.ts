@@ -1,7 +1,9 @@
 export const connectionSetupEs: Record<string, string> = {
   "Orionis server setup": "Configurar el servidor Orionis",
-  "Add these variables to your Orionis application's .env, then restart the application. Keep any other origins and HTTP methods your application needs.":
-    "Añade estas variables al .env de tu aplicación Orionis y reiníciala. Conserva los demás orígenes y métodos HTTP que tu aplicación necesite.",
+  "In a new slim_mcp application, run {command} and connect to {endpoint}. The default configuration already allows the public Inspector when CORS_ALLOW_ORIGINS is unset.":
+    "En una aplicación slim_mcp nueva, ejecuta {command} y conéctate a {endpoint}. La configuración predeterminada ya permite el Inspector público cuando CORS_ALLOW_ORIGINS está sin definir.",
+  "For a different Inspector origin or an existing CORS policy, merge the settings below into .env and restart Orionis. Keep any origins, methods and headers used by other clients.":
+    "Para otro origen del Inspector o una política CORS existente, integra los siguientes ajustes en .env y reinicia Orionis. Conserva los orígenes, métodos y cabeceras que usen otros clientes.",
   "Copy .env example": "Copiar ejemplo .env",
   "Environment example copied.": "Ejemplo de entorno copiado.",
   "Copy unavailable. Select and copy the example manually.":
@@ -15,8 +17,8 @@ export const connectionSetupEs: Record<string, string> = {
   "The inspector sends no cookies. You do not need to enable CORS_ALLOW_CREDENTIALS for it. In the standard Orionis HTTP pipeline, CORS handles OPTIONS; no separate MCP OPTIONS route is needed.":
     "El inspector no envía cookies. No necesitas activar CORS_ALLOW_CREDENTIALS para usarlo. En el flujo HTTP estándar de Orionis, CORS atiende OPTIONS; no necesitas registrar una ruta MCP OPTIONS adicional.",
   "What a successful preflight must include": "Qué debe incluir un preflight correcto",
-  "HTTP 200 or 204 and Allow: OPTIONS, POST only show that an HTTP server responded. The response must also include Access-Control-Allow-Origin for this inspector, Access-Control-Allow-Methods permitting POST, and Access-Control-Allow-Headers permitting the requested headers. The POST response needs Access-Control-Allow-Origin too.":
-    "HTTP 200 o 204 y Allow: OPTIONS, POST solo muestran que un servidor HTTP respondió. La respuesta también debe incluir Access-Control-Allow-Origin para este inspector, Access-Control-Allow-Methods que permita POST y Access-Control-Allow-Headers que permita los headers solicitados. La respuesta POST también necesita Access-Control-Allow-Origin.",
+  "Check that OPTIONS returns 2xx and permits this origin and the requested headers. POST is a CORS-safelisted method. The POST response must also allow this origin.":
+    "Comprueba que OPTIONS devuelva 2xx y permita este origen y las cabeceras solicitadas. POST figura entre los métodos permitidos por defecto en CORS. La respuesta a POST también debe permitir este origen.",
   "CORS settings cannot fix an untrusted TLS certificate, an unresolved hostname or a firewall restriction. Compare the browser's network details with the credential-free terminal preflight and analyze its output in the connection diagnostics.":
     "Configurar CORS no corrige un certificado TLS no confiable, un dominio que no resuelve o una restricción del firewall. Compara los detalles de red del navegador con el preflight de terminal sin credenciales y analiza su salida en los diagnósticos de conexión.",
   "Orionis MCP configuration reference": "Referencia de configuración MCP de Orionis",

@@ -53,9 +53,9 @@ pnpm preview
 
 On Linux CI, use `pnpm exec playwright install --with-deps chromium`. Commit `pnpm-lock.yaml` when dependencies change. `pnpm build` runs TypeScript, Vite and `scripts/verify-build.mjs`; the latter verifies the static artifact, domain marker, root-based entry assets and absence of unresolved Node imports or internal API routes. Browser tests use controlled MCP mocks; they do not send commands to a real production server.
 
-`pnpm test:orionis` runs a separate integration suite against the actual Orionis
-Python compiler, dispatcher and HTTP transport with isolated test handlers. It
-requires a framework checkout and Python environment; see
+`pnpm test:orionis` runs the Inspector client against the Orionis Python
+compiler, dispatcher and HTTP transport. To reproduce the compatibility check
+with the published Orionis 1.9.0 package, follow
 [the integration instructions](docs/ORIONIS_INTEGRATION.md). The
 [2026-11-14 compatibility audit](docs/AUDIT-2026-11-14.md) records the source revision,
 capability matrix, corrections and deliberate limitations.
@@ -150,14 +150,13 @@ Access-Control-Allow-Origin: https://inspector.orionis-framework.com
 Vary: Origin
 Access-Control-Allow-Methods: POST, OPTIONS
 Access-Control-Allow-Headers: Content-Type, Accept, Authorization, MCP-Protocol-Version, MCP-Method, MCP-Name, X-API-Key
-Access-Control-Expose-Headers: Content-Type, MCP-Protocol-Version, MCP-Method, MCP-Name, Retry-After, Server-Timing
 ```
 
-Apply that policy to preflight and actual responses, including authentication failures. Add each custom authentication or `x-mcp-header` name your endpoint accepts. Allow the exact development origin separately when testing locally.
+Add each custom authentication or `x-mcp-header` name your endpoint accepts. Allow the exact development origin separately when testing locally. If the server sends diagnostic response headers such as `Retry-After` or `Server-Timing`, list them in `Access-Control-Expose-Headers` to make them readable in the Inspector.
 
 ### Orionis environment variables
 
-The **Orionis server setup** panel is available before connecting and contains a copyable example. In the standard Orionis configuration, put these variables in your application's `.env` and restart Orionis:
+The official `slim_mcp` project for Orionis 1.9.0 already allows the hosted Inspector. Start the project with `uv run orionis serve` and connect to `http://127.0.0.1:8000/mcp`. For a local Inspector or a project with custom origin settings, the **Orionis server setup** panel provides a copyable example. Apply the settings to your application's `.env` and restart Orionis.
 
 ```dotenv
 CORS_ALLOW_ORIGINS="list:['https://inspector.orionis-framework.com']"
@@ -169,7 +168,7 @@ Keep other origins and HTTP methods required by your application. The UI example
 
 `config/mcp.py` uses `allowed_origins` to validate the request's `Origin`. `config/http.py` configures the HTTP CORS middleware and the `Access-Control-Allow-*` response headers. Both read `CORS_ALLOW_ORIGINS` through `Env.get(...)` in the standard configuration. An existing environment value, even `list:[]`, takes precedence over the fallback in Python. Editing only the fallback in `config/mcp.py` therefore does not configure HTTP CORS. The standard Orionis pipeline handles preflight without a separate MCP OPTIONS route. The inspector sends no cookies and does not require `CORS_ALLOW_CREDENTIALS=True`; retain the credentials policy your other clients require.
 
-An OPTIONS response with `HTTP 200 OK` and `Allow: OPTIONS, POST` proves only that an HTTP server responded. It must also include the correct `Access-Control-Allow-Origin`, permit POST in `Access-Control-Allow-Methods` and permit every requested header in `Access-Control-Allow-Headers`. The POST response needs `Access-Control-Allow-Origin` too.
+A successful OPTIONS preflight must allow the Inspector origin and the requested non-safelisted headers. POST is a CORS-safelisted method, so its omission from `Access-Control-Allow-Methods` alone does not block the browser. The actual MCP POST must reach its route and return `Access-Control-Allow-Origin` too.
 
 ### Distinguishing connection failures
 

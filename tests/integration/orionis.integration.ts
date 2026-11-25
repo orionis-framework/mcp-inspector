@@ -12,16 +12,20 @@ let fixtureErrors = "";
 
 beforeAll(async () => {
   const framework = resolve(process.env.ORIONIS_FRAMEWORK_PATH ?? "../framework");
+  const useCheckout = Boolean(process.env.ORIONIS_FRAMEWORK_PATH) || !process.env.ORIONIS_PYTHON;
   const python = process.env.ORIONIS_PYTHON ?? resolve(
     framework,
     process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python",
   );
-  if (!existsSync(resolve(framework, "orionis/mcp")) || !existsSync(python))
-    throw new Error("Set ORIONIS_FRAMEWORK_PATH and ORIONIS_PYTHON to an Orionis checkout and its Python 3.14 environment.");
-  fixture = spawn(python, [resolve("tests/integration/orionis_server.py"), framework], {
+  if (useCheckout && !existsSync(resolve(framework, "orionis/mcp")))
+    throw new Error("Orionis checkout missing. Set ORIONIS_PYTHON to test an installed release, or ORIONIS_FRAMEWORK_PATH to test a checkout.");
+  if (!existsSync(python))
+    throw new Error("Set ORIONIS_PYTHON to the Python executable in the Orionis environment.");
+  const args = ["-I", "-B", resolve("tests/integration/orionis_server.py")];
+  if (useCheckout) args.push(framework);
+  fixture = spawn(python, args, {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
   });
   endpoint = await new Promise<string>((resolveEndpoint, reject) => {
     let output = "";
@@ -64,9 +68,9 @@ describe.sequential("real Orionis HTTP transport", () => {
       name: "Orionis real transport fixture",
     });
     const tools = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual(["deferred", "echo", "eu", "not-found", "slow", "stream"]);
+    expect(tools.map((tool) => tool.name)).toEqual(["deferred", "echo", "eu", "not-found", "slow", "stream", "unavailable"]);
     expect(client.rejectedTools).toEqual([]);
-    expect(client.records.filter((record) => record.method === "tools/list")).toHaveLength(6);
+    expect(client.records.filter((record) => record.method === "tools/list")).toHaveLength(tools.length);
     expect(client.records.every((record) => record.error === undefined)).toBe(true);
     expect(client.records.some((record) => "Mcp-Session-Id" in record.configuredHeaders)).toBe(false);
   });
@@ -141,6 +145,13 @@ describe.sequential("real Orionis HTTP transport", () => {
     expect(client.records.at(-1)?.error?.code).toBeTypeOf("number");
     await expect(client.callTool("not-found", {})).rejects.toMatchObject({ kind: "protocol", code: -32601 });
     expect(client.records.at(-1)?.httpStatus).toBe(404);
+  });
+
+  it("preserves a native JSON-RPC error returned with HTTP 503", async () => {
+    await expect(client.callTool("unavailable", {})).rejects.toMatchObject({
+      kind: "protocol", code: -32603, message: "Service temporarily unavailable",
+    });
+    expect(client.records.at(-1)?.httpStatus).toBe(503);
   });
 
   it("reports a real Orionis Origin-policy rejection as authentication failure", async () => {

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useInspector } from "@/stores/inspector";
 import { useI18n } from "@/i18n/react";
 import { translateGenerated } from "@/i18n";
+import { INSPECTOR_ORIGIN } from "@/core/connection/orionis-setup";
 import { TerminalDiagnostics } from "./TerminalDiagnostics";
 import {
   requestAsCurl,
@@ -18,9 +19,8 @@ export function CorsHelp() {
   const [copyStatus, setCopyStatus] = useState("");
   const r = snapshot.records.at(-1);
   if (!r?.error || r.error.kind === "cancelled") return null;
-  const names = Object.keys(r.configuredHeaders);
+  const names = preflightHeaderNames(r);
   const origin = window.location.origin;
-  const productionOrigin = "https://inspector.orionis-framework.com";
   const preflight = requestAsPreflightPowerShell(r, origin);
   return (
     <details className="cors-help" open>
@@ -44,10 +44,10 @@ export function CorsHelp() {
         {t("Current inspector origin:")} <code>{origin}</code>.{" "}
         {t("The server policy must allow this exact origin.")}
       </p>
-      {origin !== productionOrigin && (
+      {origin !== INSPECTOR_ORIGIN && (
         <p>
           {t("For public deployment, also allow")}{" "}
-          <code>{productionOrigin}</code>{" "}
+          <code>{INSPECTOR_ORIGIN}</code>{" "}
           {t(
             "in the server's origin allowlist. Return a single allowed origin in Access-Control-Allow-Origin, never a list.",
           )}
@@ -63,7 +63,6 @@ export function CorsHelp() {
           "Access-Control-Allow-Origin: " + origin,
           "Access-Control-Allow-Methods: POST, OPTIONS",
           "Access-Control-Allow-Headers: " + names.join(", "),
-          "Access-Control-Expose-Headers: Content-Type, MCP-Protocol-Version, Retry-After",
           "Vary: Origin",
         ].join("\n")}
       </pre>
@@ -72,7 +71,6 @@ export function CorsHelp() {
           "Illustrative MCP server configuration using this request's header names. OPTIONS must respond before requiring POST credentials. For tools, also allow their x-mcp-header mappings. Preflight details and unexposed headers are unavailable to this application.",
         )}
       </p>
-      <p>{t("HTTP 200 and Allow: OPTIONS, POST are not sufficient for CORS. The response must include the Access-Control-Allow-* headers shown here.")}</p>
       </details>
       <h4>{t("Check the preflight from a terminal")}</h4>
       <p>PowerShell</p>
@@ -95,7 +93,7 @@ export function CorsHelp() {
           "Inspect that response's status and Access-Control-Allow-* headers. This command sends no credentials and executes no MCP operation. A successful POST with cURL does not confirm browser access: cURL does not enforce CORS.",
         )}
       </p>
-      <TerminalDiagnostics origin={origin} requestedHeaders={preflightHeaderNames(r)} />
+      <TerminalDiagnostics origin={origin} requestedHeaders={names} />
       <details>
         <summary>{t("Equivalent POST request")}</summary>
       <pre>{requestAsCurl(r)}</pre>

@@ -11,6 +11,7 @@ export async function consumeSse(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let lastChunkEndedInCr = false;
   let bytes = 0;
   let event = "message";
   let id: string | undefined;
@@ -48,13 +49,16 @@ export async function consumeSse(
       bytes += chunk.value.byteLength;
       if (bytes > maxBytes)
         throw new Error("Response exceeds the 5 MB inspection limit");
-      buffer += decoder.decode(chunk.value, { stream: true });
+      let text = decoder.decode(chunk.value, { stream: true });
+      if (!text) continue;
+      if (lastChunkEndedInCr && text.startsWith("\n")) text = text.slice(1);
+      lastChunkEndedInCr = text.endsWith("\r");
+      buffer += text.replace(/\r\n?/g, "\n");
       while (true) {
-        const match = /\r\n|\r|\n/.exec(buffer);
-        if (!match || (match[0] === "\r" && match.index === buffer.length - 1))
-          break;
-        const line = buffer.slice(0, match.index);
-        buffer = buffer.slice(match.index + match[0].length);
+        const end = buffer.indexOf("\n");
+        if (end < 0) break;
+        const line = buffer.slice(0, end);
+        buffer = buffer.slice(end + 1);
         if (!line) {
           if (dispatch()) return bytes;
           continue;

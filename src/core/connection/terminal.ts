@@ -119,9 +119,10 @@ export function analyzeTerminalOutput(input: string, options: TerminalOptions): 
   const origins = headers.get("access-control-allow-origin") ?? [];
   if (origins.length !== 1 || (origins[0] !== options.origin && origins[0] !== "*"))
     return finding("cors", "Preflight does not allow this inspector origin", "The complete response has no single matching Access-Control-Allow-Origin. HTTP 200 and Allow: OPTIONS, POST do not grant browser CORS access.", "Configure CORS_ALLOW_ORIGINS for the inspector origin in Orionis, restart the application, and return Access-Control-Allow-Origin on both OPTIONS and POST responses.", status);
-  const methods = (headers.get("access-control-allow-methods") ?? []).join(",").split(",").map((method) => method.trim());
-  if (!methods.includes("POST") && !methods.includes("*"))
-    return finding("cors", "Preflight does not allow POST", "Access-Control-Allow-Methods does not authorize POST. The separate Allow header does not substitute for it.", "Configure CORS_ALLOW_METHODS to allow POST and OPTIONS, then restart Orionis and repeat the preflight.", status);
+  // Fetch safelists POST. Its JSON body and MCP headers trigger the preflight.
+  const methods = tokens((headers.get("access-control-allow-methods") ?? []).join(","));
+  if (methods.some((method) => !/^[!#$%&'*+.^_`|~\w-]+$/.test(method)))
+    return finding("cors", "Invalid preflight method list", "Access-Control-Allow-Methods contains a value outside the HTTP method token syntax.", "Return a comma-separated list of HTTP methods such as POST, OPTIONS.", status);
   const allowed = tokens((headers.get("access-control-allow-headers") ?? []).join(","));
   const missing = options.requestedHeaders.map((name) => name.toLowerCase()).some((name) =>
     !allowed.includes(name) && !(allowed.includes("*") && name !== "authorization"));

@@ -61,6 +61,21 @@ export function validateDiscoveryResult(
     throw new Error("Discovery instructions must be a string");
 }
 
+/** This client advertises no roots, sampling or elicitation capabilities. */
+export function validateInputRequiredResult(method: string, result: Record<string, unknown>): void {
+  if (!["tools/call", "resources/read", "prompts/get"].includes(method))
+    throw new Error("This method cannot request additional input");
+  if (!("requestState" in result) && !("inputRequests" in result))
+    throw new Error("Input-required result needs inputRequests or requestState");
+  if ("requestState" in result && typeof result.requestState !== "string")
+    throw new Error("requestState must be a string");
+  if ("inputRequests" in result) {
+    if (!object(result.inputRequests)) throw new Error("inputRequests must be an object");
+    if (Object.keys(result.inputRequests).length > 0)
+      throw new Error("The server requested input capabilities that the client did not advertise");
+  }
+}
+
 /** Mirrors Orionis protocol/results.py and protocol/validation.py bounds. */
 export function validateCompletionResult(
   value: unknown,

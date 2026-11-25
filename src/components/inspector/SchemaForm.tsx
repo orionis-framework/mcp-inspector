@@ -68,7 +68,7 @@ function Field({
           return value;
         }
       }
-      if (schema.enum) {
+      if (schema.enum || type === "boolean") {
         try {
           return JSON.parse(String(value));
         } catch {
@@ -85,10 +85,10 @@ function Field({
         {required && <b className="accent"> *</b>}{" "}
         <small>{type ?? "JSON"}</small>
       </span>
-      {schema.enum ? (
+      {schema.enum || (type === "boolean" && !required) ? (
         <select {...register(name, opts)}>
           <option value="">{t("Select…")}</option>
-          {schema.enum.map((v, i) => (
+          {(schema.enum ?? [true, false]).map((v, i) => (
             <option key={i} value={JSON.stringify(v)}>
               {String(v)}
             </option>

@@ -88,9 +88,13 @@ describe("local terminal connection analysis", () => {
   it("validates origin, method and headers rather than HTTP success alone", () => {
     expect(analyzeTerminalOutput(complete(successHeaders), options).kind).toBe("preflight");
     expect(analyzeTerminalOutput(complete(successHeaders).replace(origin, "https://other.test"), options).title).toContain("origin");
-    expect(analyzeTerminalOutput(complete(successHeaders).replace("OPTIONS, POST", "OPTIONS, GET"), options).title).toBe("Preflight does not allow POST");
-    expect(analyzeTerminalOutput(complete(successHeaders).replace("OPTIONS, POST", "options, post"), options).title).toBe("Preflight does not allow POST");
+    expect(analyzeTerminalOutput(complete(successHeaders).replace("OPTIONS, POST", "GET POST"), options).title).toBe("Invalid preflight method list");
     expect(analyzeTerminalOutput(complete(successHeaders).replace(", MCP-Protocol-Version", ""), options).title).toBe("Preflight does not allow the requested headers");
+  });
+  it("accepts safelisted POST when Allow-Methods omits it or is absent", () => {
+    const withoutMethods = successHeaders.filter((line) => !line.startsWith("Access-Control-Allow-Methods:"));
+    expect(analyzeTerminalOutput(complete(withoutMethods), options).kind).toBe("preflight");
+    expect(analyzeTerminalOutput(complete([...withoutMethods, "Access-Control-Allow-Methods: GET"]), options).kind).toBe("preflight");
   });
   it("rejects duplicate and comma-separated ACAO values", () => {
     expect(analyzeTerminalOutput(complete([...successHeaders, `Access-Control-Allow-Origin: ${origin}`]), options).kind).toBe("cors");
@@ -122,7 +126,7 @@ describe("local terminal connection analysis", () => {
     expect(analyzeTerminalOutput("not enough information", options).title).toBe("Insufficient terminal evidence");
   });
   it("provides Spanish translations for returned diagnosis text", () => {
-    const samples = [tls, "curl: (60) certificate invalid", "curl: (6) error", "curl: (7) error", "curl: (28) error", "curl: (35) error", "<title>Web Filter Violation</title>", "no evidence", "HTTP/1.1 100 Continue\n\n", ...[404, 401, 405, 302, 502, 400].map((status) => `HTTP/2 ${status}\n\n`), "HTTP/1.1 200 OK", "HTTP/1.1 200 OK\n\n", complete(successHeaders), complete(successHeaders).replace("OPTIONS, POST", "GET"), complete(successHeaders).replace(", MCP-Protocol-Version", ""), "x".repeat(MAX_TERMINAL_CHARS + 1)];
+    const samples = [tls, "curl: (60) certificate invalid", "curl: (6) error", "curl: (7) error", "curl: (28) error", "curl: (35) error", "<title>Web Filter Violation</title>", "no evidence", "HTTP/1.1 100 Continue\n\n", ...[404, 401, 405, 302, 502, 400].map((status) => `HTTP/2 ${status}\n\n`), "HTTP/1.1 200 OK", "HTTP/1.1 200 OK\n\n", complete(successHeaders), complete(successHeaders).replace("OPTIONS, POST", "GET POST"), complete(successHeaders).replace(", MCP-Protocol-Version", ""), "x".repeat(MAX_TERMINAL_CHARS + 1)];
     for (const sample of samples) {
       const result = analyzeTerminalOutput(sample, options);
       for (const key of [result.title, result.evidence, result.recommendation]) expect(terminalEs[key], key).toBeTruthy();

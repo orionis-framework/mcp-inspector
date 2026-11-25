@@ -39,8 +39,6 @@ export const connectionEs: Record<string, string> = {
     "Hay una respuesta HTTP disponible. Se comprueban su estado, tipo de contenido y resultado de descubrimiento JSON-RPC antes de probar los catálogos MCP. Una respuesta HTTP por sí sola no confirma un servidor MCP válido.",
   "A 404 means the requested route was not found on a responding server. A hostname that cannot be resolved is a DNS failure, not an HTTP 404.":
     "Un 404 significa que no se encontró la ruta solicitada en un servidor que respondió. Un nombre de host que no se puede resolver es un fallo de DNS, no un HTTP 404.",
-  "HTTP 200 and Allow: OPTIONS, POST are not sufficient for CORS. The response must include the Access-Control-Allow-* headers shown here.":
-    "HTTP 200 y Allow: OPTIONS, POST no son suficientes para CORS. La respuesta debe incluir las cabeceras Access-Control-Allow-* indicadas aquí.",
   "Checking HTTP response and MCP discovery…": "Comprobando la respuesta HTTP y el descubrimiento MCP…",
   "Inspect the browser network panel and terminal diagnostics for DNS, TLS certificates, network restrictions and CORS. The failure alone does not establish the cause.":
     "Revisa el panel de red del navegador y el diagnóstico de terminal para comprobar DNS, certificados TLS, restricciones de red y CORS. El fallo por sí solo no establece la causa.",

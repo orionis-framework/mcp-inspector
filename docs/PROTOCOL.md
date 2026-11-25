@@ -1,8 +1,6 @@
 # Protocol implementation notes
 
-Contract reviewed on 2026-11-14 primarily against local Orionis Framework
-`1e905f4f103d47c61789d877eba472a5bd97681b`, `orionis/mcp`. See the
-[audit matrix](AUDIT-2026-11-14.md) and [real transport fixture](ORIONIS_INTEGRATION.md).
+The HTTP contract was checked against [Orionis Framework 1.9.0](https://pypi.org/project/orionis/1.9.0/), which implements MCP `2026-07-28`. See the [release integration tests](ORIONIS_INTEGRATION.md) and the [earlier audit matrix](AUDIT-2026-11-14.md).
 Official references:
 
 - [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)
@@ -51,8 +49,8 @@ The copyable Orionis `.env` example configures explicit `CORS_ALLOW_ORIGINS`, `C
 
 `fetch` uses CORS mode, omits ambient cookies, rejects redirects and sends no referrer. Redirects therefore cannot forward credentials to another origin. Credentials in URL userinfo and manually overridden protocol/browser headers are rejected. Authentication headers and their known values are removed from recorded payloads and exported evidence. No proxy or remote JSON Schema resolution is used. Google Analytics loads only for ordinary visits without `mcp`; endpoint links never import it.
 
-Valid JSON-RPC errors returned with HTTP 4xx retain their protocol code and message,
-including Orionis `-32601`/404. Authentication/Origin rejections remain separately
+Valid JSON-RPC errors retain their protocol code and message, including Orionis
+`-32601`/404 and `-32603`/503. Authentication/Origin rejections remain separately
 classified, and non-RPC 404 responses still identify missing HTTP routes.
 
 ## Streams, cancellation and bounds

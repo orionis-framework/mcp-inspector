@@ -418,6 +418,30 @@ describe("stateless browser MCP transport", () => {
     expect(JSON.stringify(client.records)).not.toContain(secret);
     expect(client.records[0]?.httpStatus).toBe(404);
   });
+  it("reports Orionis admission errors before a request ID is available", async () => {
+    const client = new McpClient({
+      endpoint,
+      fetchImpl: vi.fn(async () => Response.json({
+        jsonrpc: "2.0",
+        error: { code: -32603, message: "Request capacity unavailable" },
+      }, { status: 503 })),
+    });
+    await expect(client.discover()).rejects.toMatchObject({
+      kind: "protocol", code: -32603, message: "Request capacity unavailable",
+    });
+    expect(client.records[0]?.httpStatus).toBe(503);
+  });
+
+  it("dispatches a final SSE record terminated by two carriage returns", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
+      const { id } = JSON.parse(String(init?.body)) as RpcRequest;
+      return new Response(`data: ${JSON.stringify({ jsonrpc: "2.0", id, result: discovery })}\r\r`, {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    });
+    const streamed = new McpClient({ endpoint, fetchImpl });
+    await expect(streamed.discover()).resolves.toMatchObject(discovery);
+  });
   it.each([401, 404, 503])("does not wait for an unbounded SSE body after HTTP %s", async (status) => {
     const cancel = vi.fn();
     const client = new McpClient({
@@ -764,6 +788,11 @@ describe("safe mirrored header values", () => {
       "Mcp-Param-ID": "4",
     });
     expect(parameterHeaders(schema, { customer: { id: null } })).toEqual({});
+    expect(parameterHeaders({
+      properties: { customer: { properties: {
+        length: { type: "integer", "x-mcp-header": "Length" },
+      } } },
+    }, { customer: [] })).toEqual({});
     expect(() =>
       parameterHeaders(schema, {
         customer: { id: Number.MAX_SAFE_INTEGER + 1 },
@@ -771,6 +800,9 @@ describe("safe mirrored header values", () => {
     ).toThrow();
   });
   it("rejects duplicate, non-token, composed and array header annotations", () => {
+    expect(() => headerBindings({
+      properties: { a: { type: ["string"], "x-mcp-header": "ID" } },
+    })).toThrow();
     expect(() =>
       headerBindings({
         properties: {

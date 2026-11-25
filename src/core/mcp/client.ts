@@ -26,6 +26,7 @@ import { consumeSse } from "./sse";
 import {
   validateCompletionResult,
   validateDiscoveryResult,
+  validateInputRequiredResult,
   validateSubscriptionAcknowledgement,
   validateSubscriptionFilter,
 } from "./contracts";
@@ -516,7 +517,9 @@ export class McpClient {
           // Preserve the readable body for HTTP errors and non-JSON endpoints.
         }
         const rpcError =
-          object(envelope) && envelope.jsonrpc === "2.0" && object(envelope.error)
+          contentType === "application/json" && object(envelope) &&
+          envelope.jsonrpc === "2.0" && object(envelope.error) &&
+          Number.isInteger(envelope.error.code) && typeof envelope.error.message === "string"
             ? envelope.error
             : undefined;
         if (response.status === 401 || response.status === 403) {
@@ -526,16 +529,8 @@ export class McpClient {
             typeof rpcError?.code === "number" ? rpcError.code : undefined,
           );
         }
-        if (
-          !response.ok &&
-          (response.status >= 500 || !rpcError)
-        )
-          throw new McpError(
-            "http",
-            httpFailure(response.status),
-            typeof rpcError?.code === "number" ? rpcError.code : undefined,
-            this.safe(rpcError?.data),
-          );
+        if (!response.ok && !rpcError)
+          throw new McpError("http", httpFailure(response.status));
         if (contentType !== "application/json")
           throw new McpError(
             response.ok ? "protocol" : "http",
@@ -602,9 +597,7 @@ export class McpClient {
           "protocol",
           `Unrecognized resultType: ${String(result.resultType)}`,
         );
-      if (result.resultType === "input_required" &&
-          !["tools/call", "resources/read", "prompts/get"].includes(method))
-        throw new McpError("protocol", "This method cannot request additional input");
+      if (result.resultType === "input_required") validateInputRequiredResult(method, result);
       if (method === "completion/complete") validateCompletionResult(result);
       if (
         method === "subscriptions/listen" &&

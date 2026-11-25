@@ -80,12 +80,14 @@ function Detail() {
   const [argument, setArgument] = useState("");
   const [value, setValue] = useState("");
   const [streamEvents, setStreamEvents] = useState<unknown[]>([]);
-  const tool = snapshot.tools.find((t) => t.name === selection.name);
-  const resource = snapshot.resources.find((r) => r.uri === selection.name);
-  const template = snapshot.templates.find(
-    (r) => r.uriTemplate === selection.name,
-  );
-  const prompt = snapshot.prompts.find((p) => p.name === selection.name);
+  const tool = selection.kind === "tool"
+    ? snapshot.tools.find((t) => t.name === selection.name) : undefined;
+  const resource = selection.kind === "resource"
+    ? snapshot.resources.find((r) => r.uri === selection.name) : undefined;
+  const template = selection.kind === "template"
+    ? snapshot.templates.find((r) => r.uriTemplate === selection.name) : undefined;
+  const prompt = selection.kind === "prompt"
+    ? snapshot.prompts.find((p) => p.name === selection.name) : undefined;
   useEffect(() => () => controller?.abort(), [controller]);
   const saveTests = (additional: TestResult[]) => {
     setChecks(additional);
@@ -104,7 +106,9 @@ function Detail() {
     setResult(undefined);
     setChecks([]);
     // A new execution invalidates prior result verdicts for this component.
-    const component = selection.kind + ":" + selection.name;
+    const component = selection.kind === "resource" || selection.kind === "template"
+      ? "resource:" + resourceUri
+      : selection.kind + ":" + selection.name;
     useInspector.setState((state) => ({
       tests: state.tests.filter(
         (test) =>
@@ -156,9 +160,13 @@ function Detail() {
           throw new Error(
             "Prompt arguments must be an object of string values.",
           );
-        for (const a of prompt.arguments ?? [])
+        const declared = prompt.arguments ?? [];
+        for (const a of declared)
           if (a.required && !Object.hasOwn(args, a.name))
             throw new Error("Required argument: " + a.name);
+        for (const name of Object.keys(args))
+          if (!declared.some((a) => a.name === name))
+            throw new Error("Unknown prompt argument: " + name);
         data = await client.getPrompt(prompt.name, args, {
           ...opts,
           validateResult: (raw) =>

@@ -21,7 +21,10 @@ export function OrionisSetup() {
     <details className="connection-help orionis-setup">
       <summary>{t("Orionis server setup")}</summary>
       <p>
-        {t("Add these variables to your Orionis application's .env, then restart the application. Keep any other origins and HTTP methods your application needs.")}
+        {t("In a new slim_mcp application, run {command} and connect to {endpoint}. The default configuration already allows the public Inspector when CORS_ALLOW_ORIGINS is unset.", { command: "uv run orionis serve", endpoint: "http://127.0.0.1:8000/mcp" })}
+      </p>
+      <p>
+        {t("For a different Inspector origin or an existing CORS policy, merge the settings below into .env and restart Orionis. Keep any origins, methods and headers used by other clients.")}
       </p>
       <pre><code>{example}</code></pre>
       <Button type="button" size="sm" variant="secondary" onClick={() => void copy()}>
@@ -45,7 +48,7 @@ export function OrionisSetup() {
       </p>
       <h4>{t("What a successful preflight must include")}</h4>
       <p>
-        {t("HTTP 200 or 204 and Allow: OPTIONS, POST only show that an HTTP server responded. The response must also include Access-Control-Allow-Origin for this inspector, Access-Control-Allow-Methods permitting POST, and Access-Control-Allow-Headers permitting the requested headers. The POST response needs Access-Control-Allow-Origin too.")}
+        {t("Check that OPTIONS returns 2xx and permits this origin and the requested headers. POST is a CORS-safelisted method. The POST response must also allow this origin.")}
       </p>
       <p>
         {t("CORS settings cannot fix an untrusted TLS certificate, an unresolved hostname or a firewall restriction. Compare the browser's network details with the credential-free terminal preflight and analyze its output in the connection diagnostics.")}

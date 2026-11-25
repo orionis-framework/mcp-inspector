@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
-sys.path.insert(0, str(Path(sys.argv[1]).resolve()))
+if len(sys.argv) > 1:
+    sys.path.insert(0, str(Path(sys.argv[1]).resolve()))
 
 from orionis.container.container import Container
 from orionis.http.adapters.request.asgi import ASGITransportAdapter
@@ -62,6 +63,13 @@ class NotFound(Tool):
 
     async def handle(self):
         raise McpProtocolException(-32601, "Method not found", status=404)
+
+
+class Unavailable(Tool):
+    name = "unavailable"
+
+    async def handle(self):
+        raise McpProtocolException(-32603, "Service temporarily unavailable", status=503)
 
 
 class Deferred(Tool):
@@ -122,7 +130,7 @@ class Describe(Prompt):
 
 class FixtureServer(Server):
     name = "Orionis real transport fixture"
-    tools = (Deferred, Echo, Region, NotFound, Stream, Slow)
+    tools = (Deferred, Echo, Region, NotFound, Stream, Slow, Unavailable)
     resources = (Guide, Profile)
     prompts = (Describe,)
     list_changed = True

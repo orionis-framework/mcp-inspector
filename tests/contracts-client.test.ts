@@ -71,6 +71,30 @@ function fixture(respond: (request: RpcRequest) => Response) {
 
 describe("runtime MCP contract failures", () => {
   it.each([
+    {},
+    { requestState: 42 },
+    { inputRequests: null },
+    { inputRequests: { roots: { method: "roots/list" } } },
+  ])("records an invalid input-required result without replaying the request: %j", async (fields) => {
+    const { client, fetchImpl } = fixture((request) =>
+      Response.json(result(request, { resultType: "input_required", ...fields })),
+    );
+    await expect(client.readResource("docs://guide")).rejects.toMatchObject({ kind: "protocol" });
+    expect(client.records.at(-1)?.error?.kind).toBe("protocol");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([{ requestState: "opaque" }, { inputRequests: {} }])(
+    "accepts input-required responses compatible with empty client capabilities: %j",
+    async (fields) => {
+      const payload = { resultType: "input_required", ...fields };
+      const { client, fetchImpl } = fixture((request) => Response.json(result(request, payload)));
+      await expect(client.readResource("docs://guide")).resolves.toMatchObject(payload);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
     { tools: true },
     { resources: { subscribe: "true" } },
     { prompts: { listChanged: 1 } },

@@ -80,6 +80,7 @@ export const inspectorEs: Record<string, string> = {
   "Prompt arguments must be an object of string values.":
     "Los argumentos del prompt deben ser un objeto con valores de texto.",
   "Required argument: {name}": "Argumento obligatorio: {name}",
+  "Unknown prompt argument: {name}": "Argumento de prompt desconocido: {name}",
   "Invalid JSON: {details}": "JSON no válido: {details}",
   "Nested schema: use the JSON editor.":
     "Esquema anidado: utiliza el editor JSON.",

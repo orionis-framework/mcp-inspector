@@ -1,7 +1,7 @@
 # Integration with the real Orionis implementation
 
 The optional integration suite exercises the Inspector's production `McpClient`
-against Python code imported directly from an Orionis Framework checkout. MCP
+against an installed Orionis Framework package or a source checkout. MCP
 responses are not mocked. The fixture compiles its own harmless tools, resources
 and prompts using `compile_server`, dispatches requests through
 `McpHttpTransport` and the real dispatcher, and serializes native responses with
@@ -14,23 +14,27 @@ application's bootstrap, `.env`, routes, credentials or business handlers.
 
 ## Run
 
-Install this repository's locked Node dependencies and provision an Orionis
-Framework checkout with its Python 3.14 environment and dependencies. By default,
-the suite uses the sibling `../framework` checkout and its `.venv` interpreter.
+Install this repository's locked Node dependencies. To test the published release,
+create a Python 3.14 environment with Orionis 1.9.0 and set `ORIONIS_PYTHON`
+to its executable. Leave `ORIONIS_FRAMEWORK_PATH` unset in this mode.
 
 ```sh
-pnpm test:orionis
+uv venv --python 3.14 .venv
+uv pip install --python .venv 'orionis==1.9.0'
+ORIONIS_PYTHON="$PWD/.venv/bin/python" pnpm test:orionis
 ```
-
-For another checkout or interpreter, set `ORIONIS_FRAMEWORK_PATH` and
-`ORIONIS_PYTHON`. The latter is the full path to a Python executable with Orionis's
-dependencies installed; source imports still come from the selected checkout.
 
 ```powershell
-$env:ORIONIS_FRAMEWORK_PATH = 'D:\path\to\framework'
-$env:ORIONIS_PYTHON = 'D:\path\to\framework\.venv\Scripts\python.exe'
+uv venv --python 3.14 .venv
+uv pip install --python .venv 'orionis==1.9.0'
+$env:ORIONIS_PYTHON = (Resolve-Path .venv/Scripts/python.exe).Path
 pnpm test:orionis
 ```
+
+For a source checkout, set `ORIONIS_FRAMEWORK_PATH`. The fixture imports that
+checkout and uses its project's interpreter unless `ORIONIS_PYTHON` is also set.
+With both variables unset, `pnpm test:orionis` uses the sibling `../framework`
+checkout and its `.venv`.
 
 ```sh
 ORIONIS_FRAMEWORK_PATH=/path/to/framework \
@@ -46,7 +50,7 @@ disabled so verification leaves the framework checkout untouched.
 
 ## Verified behavior
 
-The twelve integration tests cover:
+The integration tests cover the following behaviors.
 
 - Stateless discovery, server metadata, advertised capabilities and native
   multi-page tool discovery.
@@ -59,8 +63,8 @@ The twelve integration tests cover:
   from omitted arguments that produce a protocol error.
 - Native MRTR `requestState` responses retained as incomplete results, without
   automatic replay or completed-output validation.
-- Tool execution errors, JSON-RPC invalid-parameter errors and an explicit
-  JSON-RPC `-32601` response carried by HTTP 404.
+- Tool execution errors, invalid parameters and native JSON-RPC errors carried by
+  HTTP 404 (`-32601`) and HTTP 503 (`-32603`).
 - A real Orionis Origin-policy rejection reported as HTTP 403.
 - Native SSE progress notifications and a final tool response.
 - Cancellation of a running SSE request followed by a successful new request,
@@ -72,13 +76,20 @@ The test-control routes `/__publish` and `/__finish` only drive event-bus change
 and shutdown in this loopback fixture. They are not MCP methods or production
 features.
 
-Executed successfully during the 2026-11-14 audit against Framework commit
-`1e905f4f103d47c61789d877eba472a5bd97681b` using Python 3.14.6: **12 tests passed**.
+The suite passed with Python 3.14.6 and the Orionis 1.9.0 distribution from PyPI.
+
+## Browser check with the published Slim MCP skeleton
+
+The release check also used Chrome with the built Inspector and a separate
+application created by `orionis-installer==1.1.0` from `slim_mcp_1.x`. The
+skeleton served its standard `/mcp` route. With the local Inspector origin in
+`CORS_ALLOW_ORIGINS`, Chrome discovered the server and its catalogs, executed
+`echo`, read `docs://example/guide` and retrieved `greeting` with its default
+style. All eight MCP POSTs returned HTTP 200.
 
 ## Boundaries
 
-This suite uses real HTTP traffic from Node Fetch. It does not prove browser
-CORS, production TLS, application authentication middleware, reverse-proxy
-configuration, deployment availability or STDIO compatibility. Browser behavior
-is covered separately by Playwright's controlled fixtures. Production deployment
-verification must be reported separately from these local results.
+The automated transport suite uses Node Fetch. The browser check exercises CORS
+on loopback, and the Playwright suite covers the interface with controlled
+fixtures. Production TLS, deployment availability and reverse proxies require
+verification in the target environment.

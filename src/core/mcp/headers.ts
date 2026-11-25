@@ -48,7 +48,8 @@ export function headerBindings(schema: JsonSchema): HeaderBinding[] {
         throw new Error(
           "x-mcp-header must be a nonempty HTTP token on a statically reachable property",
         );
-      if (!["integer", "string", "boolean"].includes(String(item.type)))
+      const type = item.type;
+      if (type !== "integer" && type !== "string" && type !== "boolean")
         throw new Error("x-mcp-header requires integer, string or boolean");
       if (names.has(name.toLowerCase()))
         throw new Error("x-mcp-header names must be case-insensitively unique");
@@ -56,7 +57,7 @@ export function headerBindings(schema: JsonSchema): HeaderBinding[] {
       bindings.push({
         path,
         header: `Mcp-Param-${name}`,
-        type: String(item.type),
+        type,
       });
     }
     for (const [key, child] of Object.entries(item)) {
@@ -86,7 +87,7 @@ export function parameterHeaders(
     let value: unknown = args;
     for (const part of binding.path) {
       value =
-        value && typeof value === "object" && Object.hasOwn(value, part)
+        value && typeof value === "object" && !Array.isArray(value) && Object.hasOwn(value, part)
           ? (value as Record<string, unknown>)[part]
           : undefined;
     }

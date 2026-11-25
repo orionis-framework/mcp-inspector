@@ -423,6 +423,14 @@ describe("evidence diagnostics", () => {
       ).find((check) => check.id.startsWith("MCP-OUTPUT"))?.status,
     ).toBe("Failed");
   });
+  it("distinguishes missing structured output from a declared nullable result", () => {
+    const schema = { type: ["string", "null"] };
+    const status = (result: { content: []; structuredContent?: string | null }) =>
+      validateToolResult("echo", result, schema).find((test) => test.id === "MCP-OUTPUT:echo")?.status;
+    expect(status({ content: [] })).toBe("Failed");
+    expect(status({ content: [], structuredContent: null })).toBe("Passed");
+    expect(status({ content: [], structuredContent: "ok" })).toBe("Passed");
+  });
   it("does not validate input_required as completed output", () => {
     expect(
       validateToolResult("find_orders", { resultType: "input_required" })[0]
@@ -499,6 +507,20 @@ describe("evidence diagnostics", () => {
       validateResourceResult("x://y", { contents: [{ uri: "x://y" }] })[0]
         .status,
     ).toBe("Failed");
+  });
+  it("requires exactly one text or blob payload for standalone and embedded resources", () => {
+    const uri = "docs://guide";
+    for (const [resource, expected] of [
+      [{ uri, text: "" }, "Passed"],
+      [{ uri, blob: "AQID" }, "Passed"],
+      [{ uri, text: "guide", blob: "AQID" }, "Failed"],
+      [{ uri, text: "guide", blob: null }, "Failed"],
+    ] as const) {
+      expect(validateResourceResult(uri, { contents: [resource] })[0].status).toBe(expected);
+      expect(validatePromptResult("guide", {
+        messages: [{ role: "assistant", content: { type: "resource", resource } }],
+      })[0].status).toBe(expected);
+    }
   });
   it("checks RFC6570 templates without requiring a fixed URI scheme", () => {
     expect(validUriTemplate("{+path}{?search,limit}")).toBe(true);

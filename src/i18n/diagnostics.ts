@@ -228,6 +228,8 @@ export const diagnosticsEs: Record<string, string> = {
     "Los valores sensibles se ocultaron antes de la inspección. No se puede validar la salida original con esta evidencia.",
   "structuredContent conforms to outputSchema.":
     "structuredContent cumple con outputSchema.",
+  "A successful tool result with an outputSchema must include structuredContent.":
+    "Un resultado correcto de una herramienta con outputSchema debe incluir structuredContent.",
   "Return structuredContent matching the advertised outputSchema.":
     "Devuelve structuredContent de acuerdo con el outputSchema declarado.",
   "Resource content structure": "Estructura del contenido del recurso",
@@ -293,6 +295,14 @@ export const diagnosticsEs: Record<string, string> = {
   "Response ID does not match the request":
     "El ID de respuesta no coincide con la solicitud",
   "Malformed JSON-RPC error": "Error JSON-RPC mal formado",
+  "This method cannot request additional input":
+    "Este método no admite solicitudes de información adicional",
+  "Input-required result needs inputRequests or requestState":
+    "Un resultado input_required debe incluir inputRequests o requestState",
+  "requestState must be a string": "requestState debe ser una cadena de texto",
+  "inputRequests must be an object": "inputRequests debe ser un objeto",
+  "The server requested input capabilities that the client did not advertise":
+    "El servidor solicitó información mediante capacidades que el cliente no anunció",
   "JSON-RPC result must be an object":
     "El resultado JSON-RPC debe ser un objeto",
   "Subscription completion ID does not match":

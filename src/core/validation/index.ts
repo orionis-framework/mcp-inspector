@@ -735,6 +735,7 @@ function validResourceContent(value: unknown): boolean {
   const content = object(value);
   return (
     absoluteUri(content.uri) &&
+    Object.hasOwn(content, "text") !== Object.hasOwn(content, "blob") &&
     (typeof content.text === "string" || base64(content.blob)) &&
     (content.mimeType === undefined || typeof content.mimeType === "string")
   );
@@ -801,6 +802,19 @@ export function validateToolResult(
       ),
     );
   if (outputSchema !== undefined && !result.isError) {
+    if (result.structuredContent === undefined) {
+      tests.push(finding(
+        `MCP-OUTPUT:${toolName}`,
+        "Structured output validation",
+        "tools",
+        "Failed",
+        `tool:${toolName}`,
+        "A successful tool result with an outputSchema must include structuredContent.",
+        "Return structuredContent matching the advertised outputSchema.",
+        `${BASE}/server/tools`,
+      ));
+      return tests;
+    }
     const changedByRedaction = /\[REDACTED\]/i.test(
       JSON.stringify(result.structuredContent) ?? "",
     );
